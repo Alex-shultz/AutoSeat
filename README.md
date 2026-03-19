@@ -1,2 +1,2 @@
 # AutoSeat
-automatic seating generatiuon projetct 
+This is a thesis project for AMA OEd University 
