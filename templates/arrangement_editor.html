@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeatWise — {{ 'Edit: ' + arrangement.name if arrangement else 'New Arrangement' }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #0b0e14; --surface: #111520; --panel: #161c2c; --panel-h: #1b233a;
+      --border: #1f2b45; --border-h: #2e3f66; --text: #e8ecf4;
+      --muted: #6b7a9b; --muted-l: #8b9bbf;
+      --accent: #f0a500; --accent-d: #c48500; --accent-dim: rgba(240,165,0,.1);
+      --green: #22c55e; --red: #ef4444; --blue: #3b82f6; --radius: 8px;
+    }
+    html, body { height: 100%; background: var(--ink); color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 14px; }
+    body::before { content:''; position:fixed; inset:0; z-index:0;
+      background-image: linear-gradient(rgba(240,165,0,.025) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(240,165,0,.025) 1px,transparent 1px);
+      background-size:48px 48px; pointer-events:none; }
+
+    /* ── Layout ── */
+    .app { position:relative; z-index:1; display:flex; height:100vh; overflow:hidden; }
+
+    /* ── Left Config Panel ── */
+    .config-panel {
+      width:280px; flex-shrink:0; background:var(--surface);
+      border-right:1px solid var(--border);
+      display:flex; flex-direction:column; overflow-y:auto;
+    }
+    .panel-header { padding:16px 20px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; gap:10px; }
+    .back-btn { background:none; border:none; color:var(--muted); cursor:pointer;
+      padding:6px; border-radius:7px; display:flex; align-items:center; transition:all .15s; }
+    .back-btn:hover { color:var(--text); background:var(--panel); }
+    .panel-header h2 { font-family:'Instrument Serif',serif; font-size:18px; font-weight:400; flex:1; }
+    .unsaved-dot { width:7px; height:7px; background:var(--accent); border-radius:50%;
+      display:none; animation:pulse 2s infinite; }
+    .unsaved-dot.show { display:block; }
+
+    .panel-section { padding:14px 20px; border-bottom:1px solid var(--border); }
+    .section-label { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em;
+      text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+
+    /* Fields */
+    .field { display:flex; flex-direction:column; gap:5px; margin-bottom:10px; }
+    .field:last-child { margin-bottom:0; }
+    .field-label { font-size:12px; font-weight:600; color:var(--muted-l); letter-spacing:.03em; }
+    input[type="text"], select, input[type="number"] {
+      background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+      color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; padding:8px 10px;
+      outline:none; transition:border-color .2s; width:100%; }
+    input:focus, select:focus { border-color:var(--accent); }
+    input::placeholder { color:var(--muted); }
+    select option { background:var(--panel); }
+
+    /* Participants list */
+    .participant-list { display:flex; flex-direction:column; gap:6px; }
+    .participant-row {
+      background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+      padding:10px 12px; display:flex; flex-direction:column; gap:8px;
+      animation:popIn .25s ease both;
+    }
+    .participant-row-top { display:flex; align-items:center; gap:8px; }
+    .participant-name { flex:1; font-size:13px; font-weight:600; }
+    .participant-group { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+    .participant-tags { display:flex; gap:4px; flex-wrap:wrap; }
+    .ptag { padding:2px 6px; border-radius:4px; font-size:10px; font-weight:600;
+      font-family:'IBM Plex Mono',monospace; }
+    .ptag-front  { background:rgba(59,130,246,.15); color:#93c5fd; }
+    .ptag-aisle  { background:rgba(34,197,94,.12);  color:#86efac; }
+    .ptag-seat   { background:rgba(240,165,0,.12);  color:#fcd34d; }
+    .delete-btn { background:none; border:none; color:var(--muted); cursor:pointer;
+      padding:3px; border-radius:4px; transition:color .15s; display:flex; align-items:center; }
+    .delete-btn:hover { color:var(--red); }
+
+    .add-btn { width:100%; padding:8px; border:1px dashed var(--border); border-radius:var(--radius);
+      background:none; color:var(--muted); cursor:pointer; font-family:'DM Sans',sans-serif;
+      font-size:13px; transition:all .18s; margin-top:6px; }
+    .add-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+
+    /* Constraints list */
+    .constraint-list { display:flex; flex-direction:column; gap:6px; }
+    .constraint-row {
+      background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+      padding:9px 12px; display:flex; align-items:flex-start; gap:8px;
+      animation:popIn .25s ease both;
+    }
+    .constraint-info { flex:1; min-width:0; }
+    .constraint-type { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.04em;
+      text-transform:uppercase; color:var(--accent); margin-bottom:3px; }
+    .constraint-desc { font-size:12px; color:var(--muted-l); }
+
+    /* Save/Run buttons */
+    .action-section { padding:14px 20px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+    .btn { display:flex; align-items:center; justify-content:center; gap:7px; padding:10px 16px;
+      border-radius:var(--radius); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600;
+      cursor:pointer; transition:all .2s; border:1px solid transparent; text-decoration:none; }
+    .btn-primary { background:var(--accent); color:var(--ink); box-shadow:0 4px 16px rgba(240,165,0,.2); }
+    .btn-primary:hover { background:var(--accent-d); }
+    .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+    .btn-ghost { background:var(--panel); color:var(--muted-l); border-color:var(--border); }
+    .btn-ghost:hover { background:var(--panel-h); color:var(--text); border-color:var(--border-h); }
+    .btn-run { background:linear-gradient(135deg, #22c55e, #16a34a); color:#fff;
+      box-shadow:0 4px 16px rgba(34,197,94,.25); }
+    .btn-run:hover { box-shadow:0 6px 24px rgba(34,197,94,.35); }
+    .btn-run:disabled { opacity:.5; cursor:not-allowed; background:#1f2b45; box-shadow:none; color:var(--muted); }
+
+    /* ── Centre: grid canvas ── */
+    .canvas-area { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+    .canvas-toolbar { height:52px; flex-shrink:0; background:var(--surface);
+      border-bottom:1px solid var(--border); display:flex; align-items:center;
+      padding:0 20px; gap:12px; }
+    .canvas-title { font-family:'Instrument Serif',serif; font-size:17px; flex:1; }
+    .canvas-title .dim { font-family:'IBM Plex Mono',monospace; font-size:12px;
+      color:var(--muted); margin-left:8px; }
+    .status-pill { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700;
+      text-transform:uppercase; letter-spacing:.04em; }
+    .status-pill.solved     { background:rgba(34,197,94,.15); color:#86efac; border:1px solid rgba(34,197,94,.3); }
+    .status-pill.unsolved   { background:rgba(240,165,0,.1);  color:#fcd34d; border:1px solid rgba(240,165,0,.2); }
+    .status-pill.infeasible { background:rgba(239,68,68,.12); color:#fca5a5; border:1px solid rgba(239,68,68,.3); }
+    .status-pill.running    { background:rgba(59,130,246,.15); color:#93c5fd; border:1px solid rgba(59,130,246,.3); }
+
+    .grid-viewport { flex:1; overflow:auto; padding:28px;
+      display:flex; flex-direction:column; align-items:flex-start; gap:20px; }
+
+    /* Seat grid */
+    .grid-wrap { display:inline-flex; flex-direction:column; gap:0; user-select:none; }
+    .col-headers { display:flex; padding-left:36px; }
+    .col-hdr { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted);
+      display:flex; align-items:center; justify-content:center; }
+    .grid-row { display:flex; align-items:center; }
+    .row-lbl { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted);
+      width:32px; text-align:right; padding-right:8px; flex-shrink:0; }
+    .seat {
+      border:1px solid var(--border); border-radius:5px; cursor:default;
+      display:flex; align-items:center; justify-content:center;
+      font-family:'IBM Plex Mono',monospace; overflow:hidden;
+      transition:transform .1s, filter .1s;
+      position:relative;
+    }
+    .seat:hover { z-index:10; filter:brightness(1.25); }
+    .seat.empty   { background:#111826; border-color:#1a2436; }
+    .seat.blocked { background:#0d1017; border-color:#141920; opacity:.3; }
+    .seat.blocked::after { content:'✕'; position:absolute; color:var(--muted); font-size:9px; }
+    .seat.assigned { border-width:1px; }
+    .seat.front-row { border-top:2px solid rgba(59,130,246,.5); }
+    .seat.aisle-seat { border-left:2px solid rgba(34,197,94,.4); border-right:2px solid rgba(34,197,94,.4); }
+
+    /* Participant name inside seat */
+    .seat-name { font-size:7px; text-align:center; line-height:1.2; padding:2px;
+      overflow:hidden; word-break:break-all; color:#fff; opacity:.9; }
+
+    /* Tooltip */
+    .seat-tip { position:absolute; bottom:calc(100% + 5px); left:50%; transform:translateX(-50%);
+      background:var(--surface); border:1px solid var(--border); border-radius:6px;
+      padding:4px 8px; white-space:nowrap; font-size:10px; color:var(--muted-l);
+      pointer-events:none; opacity:0; transition:opacity .15s; z-index:50; }
+    .seat:hover .seat-tip { opacity:1; }
+
+    /* Result panel below grid */
+    .result-panel { background:var(--panel); border:1px solid var(--border); border-radius:12px;
+      padding:20px; min-width:400px; max-width:100%; animation:fadeIn .3s ease; }
+    .result-panel h3 { font-family:'Instrument Serif',serif; font-size:18px; font-weight:400;
+      margin-bottom:14px; }
+
+    .violations-box { margin-top:14px; padding:12px 14px; background:rgba(239,68,68,.07);
+      border:1px solid rgba(239,68,68,.2); border-radius:8px; }
+    .violations-box h4 { font-size:12px; font-weight:700; color:#fca5a5;
+      text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+    .violation-item { font-size:12px; color:#fca5a5; padding:3px 0; }
+
+    .assign-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:4px; }
+    .assign-table th { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+      color:var(--muted); padding:6px 8px; text-align:left; border-bottom:1px solid var(--border); }
+    .assign-table td { padding:7px 8px; border-bottom:1px solid rgba(31,43,69,.5); }
+    .assign-table tr:last-child td { border-bottom:none; }
+    .assign-table tr:hover td { background:rgba(255,255,255,.02); }
+    .seat-badge { display:inline-block; padding:2px 7px; border-radius:4px;
+      background:var(--panel); border:1px solid var(--border);
+      font-family:'IBM Plex Mono',monospace; font-size:11px; }
+
+    /* Infeasible notice */
+    .infeasible-box { background:rgba(239,68,68,.07); border:1px solid rgba(239,68,68,.2);
+      border-radius:10px; padding:20px; text-align:center; }
+    .infeasible-box h3 { font-family:'Instrument Serif',serif; font-size:20px; color:#fca5a5;
+      margin-bottom:8px; }
+    .infeasible-box p { font-size:13px; color:var(--muted); }
+
+    /* ── Right Panel: Add forms ── */
+    .right-panel { width:260px; flex-shrink:0; background:var(--surface);
+      border-left:1px solid var(--border); display:flex; flex-direction:column;
+      overflow-y:auto; }
+    .right-header { padding:16px; border-bottom:1px solid var(--border); }
+    .right-header h3 { font-family:'Instrument Serif',serif; font-size:16px; font-weight:400; }
+    .right-section { padding:14px 16px; border-bottom:1px solid var(--border); }
+
+    .check-row { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:13px; }
+    .check-row input[type="checkbox"] { width:15px; height:15px; accent-color:var(--accent);
+      cursor:pointer; flex-shrink:0; }
+
+    .form-actions { display:flex; gap:6px; margin-top:10px; }
+    .btn-add { flex:1; padding:8px; border:none; border-radius:var(--radius);
+      background:var(--accent); color:var(--ink); font-family:'DM Sans',sans-serif;
+      font-size:13px; font-weight:600; cursor:pointer; transition:background .2s; }
+    .btn-add:hover { background:var(--accent-d); }
+
+    /* ── Toasts ── */
+    .toast-stack { position:fixed; bottom:20px; right:20px; z-index:1000;
+      display:flex; flex-direction:column; gap:6px; }
+    .toast { padding:10px 14px; border-radius:8px; font-size:12px;
+      display:flex; align-items:center; gap:7px; box-shadow:0 6px 20px rgba(0,0,0,.5); }
+    .toast.success { background:rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.3); color:#86efac; }
+    .toast.error   { background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.3); color:#fca5a5; }
+    .toast.info    { background:rgba(59,130,246,.15); border:1px solid rgba(59,130,246,.3); color:#93c5fd; }
+
+    /* Group colour palette */
+    .group-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes popIn  { from { opacity:0; transform:scale(.9); } to { opacity:1; transform:scale(1); } }
+    @keyframes pulse  { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+    @keyframes spin   { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="app">
+
+<!-- ════════════════════════════════════════════════════════
+     LEFT: Config panel — metadata, participants, constraints
+════════════════════════════════════════════════════════ -->
+<aside class="config-panel">
+  <div class="panel-header">
+    <button class="back-btn" onclick="goBack()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <h2>{{ 'Edit' if arrangement else 'New Arrangement' }}</h2>
+    <div class="unsaved-dot" id="unsavedDot"></div>
+  </div>
+
+  <!-- Details -->
+  <div class="panel-section">
+    <div class="section-label">Details</div>
+    <div class="field">
+      <label class="field-label">Name</label>
+      <input type="text" id="arrName" placeholder="e.g. CS101 Midterm" oninput="markDirty()"
+             value="{{ arrangement.name if arrangement else '' }}" />
+    </div>
+    <div class="field">
+      <label class="field-label">Venue</label>
+      <select id="venueSelect" onchange="onVenueChange()">
+        <option value="">— Select a venue —</option>
+        {% for v in venues %}
+        <option value="{{ v.id }}" data-rows="{{ v.rows }}" data-cols="{{ v.cols }}"
+          {{ 'selected' if arrangement and arrangement.venue_id == v.id }}>
+          {{ v.name }} ({{ v.rows }}×{{ v.cols }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <!-- Participants -->
+  <div class="panel-section">
+    <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Participants (<span id="partCount">0</span>)</span>
+      <button style="background:none;border:1px solid var(--border);color:var(--muted-l);cursor:pointer;
+        padding:3px 8px;border-radius:5px;font-size:10px;font-family:'DM Sans',sans-serif;
+        transition:all .15s;letter-spacing:.03em;"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted-l)'"
+        onclick="openRosterModal()">↓ From Roster</button>
+    </div>
+    <div class="participant-list" id="participantList"></div>
+  </div>
+
+  <!-- Constraints -->
+  <div class="panel-section" style="flex:1;">
+    <div class="section-label">Constraints (<span id="constrCount">0</span>)</div>
+    <div class="constraint-list" id="constraintList"></div>
+  </div>
+
+  <!-- Actions -->
+  <div class="action-section">
+    <button class="btn btn-run" id="runBtn" onclick="runSolver()" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Run CSP Solver
+    </button>
+    <button class="btn btn-primary" id="saveBtn" onclick="saveArrangement()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save
+    </button>
+    {% if arrangement %}
+    <a href="/api/arrangements/{{ arrangement.id }}/export" class="btn btn-ghost">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export JSON
+    </a>
+    {% endif %}
+  </div>
+</aside>
+
+<!-- ════════════════════════════════════════════════════════
+     CENTRE: venue grid + result
+════════════════════════════════════════════════════════ -->
+<div class="canvas-area">
+  <div class="canvas-toolbar">
+    <div class="canvas-title" id="canvasTitle">
+      {{ arrangement.name if arrangement else 'New Arrangement' }}
+      <span class="dim" id="dimLabel"></span>
+    </div>
+    <div class="status-pill unsolved" id="statusPill">● Unsolved</div>
+  </div>
+
+  <div class="grid-viewport" id="gridViewport">
+    <div id="noVenueMsg" style="color:var(--muted);padding:12px 0;font-size:13px;">
+      ← Select a venue to preview the grid.
+    </div>
+    <div class="grid-wrap" id="gridWrap" style="display:none;"></div>
+    <div id="resultArea"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     RIGHT: add participant / add constraint forms
+════════════════════════════════════════════════════════ -->
+<aside class="right-panel">
+  <div class="right-header">
+    <h3>Add Participant</h3>
+  </div>
+  <div class="right-section">
+    <div class="field">
+      <label class="field-label">Name *</label>
+      <input type="text" id="pName" placeholder="Full name" />
+    </div>
+    <div class="field">
+      <label class="field-label">Group</label>
+      <input type="text" id="pGroup" placeholder="e.g. team-A (optional)" />
+    </div>
+    <div class="field">
+      <label class="field-label">Reserved Seat</label>
+      <input type="text" id="pSeat" placeholder="e.g. R1C3 (optional)" />
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="pFront" />
+      <label for="pFront">Needs front row</label>
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="pAisle" />
+      <label for="pAisle">Needs aisle seat</label>
+    </div>
+    <div class="form-actions">
+      <button class="btn-add" onclick="addParticipant()">+ Add Participant</button>
+    </div>
+  </div>
+
+  <div class="right-header" style="margin-top:0;">
+    <h3>Add Constraint</h3>
+  </div>
+  <div class="right-section">
+    <div class="field">
+      <label class="field-label">Type *</label>
+      <select id="cType" onchange="onConstraintTypeChange()">
+        <option value="MUST_SIT_TOGETHER">Must sit together</option>
+        <option value="MUST_NOT_SIT_TOGETHER">Must NOT sit together</option>
+        <option value="SAME_GROUP_TOGETHER">Group — sit together</option>
+        <option value="SAME_GROUP_APART">Group — sit apart</option>
+        <option value="FRONT_ROW">Front row</option>
+        <option value="NEAR_AISLE">Near aisle</option>
+        <option value="SPECIFIC_SEAT">Specific seat</option>
+      </select>
+    </div>
+    <!-- Participant pickers (shown for binary/unary constraints) -->
+    <div id="cPart1Wrap" class="field">
+      <label class="field-label">Participant 1 *</label>
+      <select id="cPart1"><option value="">— select —</option></select>
+    </div>
+    <div id="cPart2Wrap" class="field">
+      <label class="field-label">Participant 2 *</label>
+      <select id="cPart2"><option value="">— select —</option></select>
+    </div>
+    <!-- Group picker -->
+    <div id="cGroupWrap" class="field" style="display:none;">
+      <label class="field-label">Group name *</label>
+      <input type="text" id="cGroup" placeholder="e.g. team-A" />
+    </div>
+    <!-- Seat picker -->
+    <div id="cSeatWrap" class="field" style="display:none;">
+      <label class="field-label">Seat ID *</label>
+      <input type="text" id="cSeat" placeholder="e.g. R1C3" />
+    </div>
+    <div class="form-actions">
+      <button class="btn-add" onclick="addConstraint()">+ Add Constraint</button>
+    </div>
+  </div>
+</aside>
+
+</div><!-- /.app -->
+
+<!-- ════════ Roster import modal ════════ -->
+<div class="modal-overlay" id="rosterModal" onclick="if(event.target===this)closeRosterModal()">
+  <div class="modal" style="max-width:520px;width:92%;max-height:80vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <h3 style="font-family:'Instrument Serif',serif;font-size:22px;font-weight:400;">Import from Roster</h3>
+        <p style="font-size:12px;color:var(--muted);margin-top:3px;">Select participants to add to this arrangement.</p>
+      </div>
+      <button onclick="closeRosterModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:6px;border-radius:6px;display:flex;align-items:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Search inside modal -->
+    <div style="position:relative;margin-bottom:12px;flex-shrink:0;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="rosterSearch" placeholder="Search name or group…"
+             style="width:100%;background:var(--ink);border:1px solid var(--border);border-radius:7px;
+                    color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;
+                    padding:8px 10px 8px 32px;outline:none;"
+             oninput="filterRoster()" />
+    </div>
+
+    <!-- Roster list -->
+    <div id="rosterList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;
+         margin-bottom:16px;min-height:120px;max-height:340px;"></div>
+
+    <!-- Footer -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+         padding-top:14px;border-top:1px solid var(--border);flex-shrink:0;">
+      <span id="rosterSelCount" style="font-size:12px;color:var(--muted);">0 selected</span>
+      <div style="display:flex;gap:8px;">
+        <button onclick="closeRosterModal()" style="padding:8px 16px;border-radius:7px;
+          background:var(--panel);border:1px solid var(--border);color:var(--muted-l);
+          cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;">Cancel</button>
+        <button onclick="importSelected()" style="padding:8px 16px;border-radius:7px;
+          background:var(--accent);border:none;color:var(--ink);cursor:pointer;
+          font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;">
+          Add Selected →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.modal-overlay { position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.75);
+  display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);
+  opacity:0;pointer-events:none;transition:opacity .2s; }
+.modal-overlay.open { opacity:1;pointer-events:all; }
+.modal { background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:24px;transform:scale(.95);transition:transform .2s; }
+.modal-overlay.open .modal { transform:scale(1); }
+
+.roster-item { display:flex;align-items:center;gap:10px;padding:9px 12px;
+  border-radius:8px;border:1px solid var(--border);background:var(--ink);
+  cursor:pointer;transition:border-color .15s,background .15s; }
+.roster-item:hover { border-color:var(--border-h);background:rgba(255,255,255,.02); }
+.roster-item.selected { border-color:var(--accent);background:rgba(240,165,0,.08); }
+.roster-item.already-added { opacity:.4;cursor:not-allowed;pointer-events:none; }
+.roster-check { width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:all .15s; }
+.roster-item.selected .roster-check { background:var(--accent);border-color:var(--accent);color:var(--ink); }
+.roster-item-info { flex:1;min-width:0; }
+.roster-item-name { font-size:13px;font-weight:600; }
+.roster-item-meta { font-size:11px;color:var(--muted);margin-top:1px; }
+</style>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+//  Constants / initial state from server
+// ════════════════════════════════════════════════════════════════════════
+const ARR_ID   = {{ arrangement.id if arrangement else 'null' }};
+const VENUE_ID_INIT = {{ arrangement.venue_id if arrangement and arrangement.venue_id else 'null' }};
+
+let participants = [];
+let constraints  = [];
+let isDirty      = false;
+let currentVenueLayout = null;   // parsed layout JSON from the selected venue
+let currentResult      = null;   // last CSP result
+
+// Restore saved data if editing
+{% if arrangement %}
+  participants = {{ arrangement.participants_json | safe }};
+  constraints  = {{ arrangement.constraints_json | safe }};
+  {% if arrangement.result_json %}
+    currentResult = {{ arrangement.result_json | safe }};
+  {% endif %}
+{% endif %}
+
+// Group → hue mapping (deterministic via hash)
+const GROUP_COLORS = ['#f0a500','#3b82f6','#22c55e','#a855f7','#ec4899','#f97316','#14b8a6','#ef4444'];
+function groupColor(group) {
+  if (!group) return '#6b7a9b';
+  let h = 0;
+  for (let i = 0; i < group.length; i++) h = (h * 31 + group.charCodeAt(i)) % GROUP_COLORS.length;
+  return GROUP_COLORS[h];
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Dirty / navigation guard
+// ════════════════════════════════════════════════════════════════════════
+function markDirty() {
+  isDirty = true;
+  document.getElementById('unsavedDot').classList.add('show');
+  syncCanvasTitle();
+}
+function clearDirty() {
+  isDirty = false;
+  document.getElementById('unsavedDot').classList.remove('show');
+}
+function goBack() {
+  if (isDirty && !confirm('Unsaved changes. Leave anyway?')) return;
+  window.location.href = '/arrangements';
+}
+window.addEventListener('beforeunload', e => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } });
+
+function syncCanvasTitle() {
+  const name = document.getElementById('arrName').value || 'New Arrangement';
+  document.getElementById('canvasTitle').childNodes[0].textContent = name + ' ';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Participants
+// ════════════════════════════════════════════════════════════════════════
+function renderParticipants() {
+  const list = document.getElementById('participantList');
+  list.innerHTML = '';
+  participants.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'participant-row';
+    const color = groupColor(p.group);
+    const tags = [];
+    if (p.needs_front_row) tags.push('<span class="ptag ptag-front">Front</span>');
+    if (p.needs_aisle)     tags.push('<span class="ptag ptag-aisle">Aisle</span>');
+    if (p.reserved_seat)   tags.push(`<span class="ptag ptag-seat">${p.reserved_seat}</span>`);
+    row.innerHTML = `
+      <div class="participant-row-top">
+        <div class="group-dot" style="background:${color}" title="${p.group||'no group'}"></div>
+        <div style="flex:1;">
+          <div class="participant-name">${esc(p.name)}</div>
+          ${p.group ? `<div class="participant-group">${esc(p.group)}</div>` : ''}
+        </div>
+        <button class="delete-btn" onclick="removeParticipant(${i})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      ${tags.length ? `<div class="participant-tags">${tags.join('')}</div>` : ''}
+    `;
+    list.appendChild(row);
+  });
+  document.getElementById('partCount').textContent = participants.length;
+  refreshConstraintSelects();
+  updateRunBtn();
+  renderGrid();
+}
+
+function addParticipant() {
+  const name = document.getElementById('pName').value.trim();
+  if (!name) { toast('Name is required.', 'error'); return; }
+  if (participants.find(p => p.name === name)) { toast('A participant with that name already exists.', 'error'); return; }
+  participants.push({
+    name,
+    group:           document.getElementById('pGroup').value.trim() || null,
+    reserved_seat:   document.getElementById('pSeat').value.trim() || null,
+    needs_front_row: document.getElementById('pFront').checked,
+    needs_aisle:     document.getElementById('pAisle').checked,
+  });
+  // Clear form
+  ['pName','pGroup','pSeat'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pFront').checked = false;
+  document.getElementById('pAisle').checked = false;
+  markDirty();
+  renderParticipants();
+}
+
+function removeParticipant(i) {
+  const name = participants[i].name;
+  participants.splice(i, 1);
+  // Remove constraints that reference this participant
+  constraints = constraints.filter(c =>
+    !c.participants || !c.participants.includes(name)
+  );
+  markDirty();
+  renderParticipants();
+  renderConstraints();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Constraints
+// ════════════════════════════════════════════════════════════════════════
+const CTYPE_LABELS = {
+  MUST_SIT_TOGETHER:    'Must sit together',
+  MUST_NOT_SIT_TOGETHER:'Must NOT sit together',
+  SAME_GROUP_TOGETHER:  'Group — together',
+  SAME_GROUP_APART:     'Group — apart',
+  FRONT_ROW:            'Front row',
+  NEAR_AISLE:           'Near aisle',
+  SPECIFIC_SEAT:        'Specific seat',
+};
+
+function renderConstraints() {
+  const list = document.getElementById('constraintList');
+  list.innerHTML = '';
+  constraints.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'constraint-row';
+    let desc = '';
+    if (c.participants && c.participants.length)
+      desc = c.participants.join(', ');
+    if (c.group) desc = (desc ? desc + ' · ' : '') + 'group: ' + c.group;
+    if (c.seat_id) desc = (desc ? desc + ' · ' : '') + 'seat: ' + c.seat_id;
+    row.innerHTML = `
+      <div class="constraint-info">
+        <div class="constraint-type">${CTYPE_LABELS[c.type] || c.type}</div>
+        <div class="constraint-desc">${esc(desc)}</div>
+      </div>
+      <button class="delete-btn" onclick="removeConstraint(${i})">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+    list.appendChild(row);
+  });
+  document.getElementById('constrCount').textContent = constraints.length;
+}
+
+function refreshConstraintSelects() {
+  ['cPart1','cPart2'].forEach(id => {
+    const sel = document.getElementById(id);
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— select —</option>';
+    participants.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.name; opt.textContent = p.name;
+      if (p.name === prev) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function onConstraintTypeChange() {
+  const t = document.getElementById('cType').value;
+  const binary = ['MUST_SIT_TOGETHER','MUST_NOT_SIT_TOGETHER'].includes(t);
+  const single = ['FRONT_ROW','NEAR_AISLE'].includes(t);
+  const group  = ['SAME_GROUP_TOGETHER','SAME_GROUP_APART'].includes(t);
+  const seat   = t === 'SPECIFIC_SEAT';
+
+  document.getElementById('cPart1Wrap').style.display = (binary || single || seat) ? '' : 'none';
+  document.getElementById('cPart2Wrap').style.display = binary ? '' : 'none';
+  document.getElementById('cGroupWrap').style.display = group  ? '' : 'none';
+  document.getElementById('cSeatWrap').style.display  = seat   ? '' : 'none';
+}
+onConstraintTypeChange(); // run once on load
+
+function addConstraint() {
+  const t = document.getElementById('cType').value;
+  const binary = ['MUST_SIT_TOGETHER','MUST_NOT_SIT_TOGETHER'].includes(t);
+  const single = ['FRONT_ROW','NEAR_AISLE'].includes(t);
+  const group  = ['SAME_GROUP_TOGETHER','SAME_GROUP_APART'].includes(t);
+  const seat   = t === 'SPECIFIC_SEAT';
+
+  const c = { type: t, participants: [], group: null, seat_id: null };
+
+  if (binary) {
+    const p1 = document.getElementById('cPart1').value;
+    const p2 = document.getElementById('cPart2').value;
+    if (!p1 || !p2) { toast('Select both participants.', 'error'); return; }
+    if (p1 === p2) { toast('Participants must be different.', 'error'); return; }
+    c.participants = [p1, p2];
+  } else if (single) {
+    const p1 = document.getElementById('cPart1').value;
+    if (!p1) { toast('Select a participant.', 'error'); return; }
+    c.participants = [p1];
+  } else if (group) {
+    const g = document.getElementById('cGroup').value.trim();
+    if (!g) { toast('Enter a group name.', 'error'); return; }
+    c.group = g;
+  } else if (seat) {
+    const p1 = document.getElementById('cPart1').value;
+    const s  = document.getElementById('cSeat').value.trim();
+    if (!p1 || !s) { toast('Select participant and seat.', 'error'); return; }
+    c.participants = [p1]; c.seat_id = s;
+  }
+
+  constraints.push(c);
+  document.getElementById('cGroup').value = '';
+  document.getElementById('cSeat').value  = '';
+  markDirty();
+  renderConstraints();
+}
+
+function removeConstraint(i) {
+  constraints.splice(i, 1);
+  markDirty();
+  renderConstraints();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Venue / grid
+// ════════════════════════════════════════════════════════════════════════
+async function onVenueChange() {
+  markDirty();
+  const sel = document.getElementById('venueSelect');
+  const vid = sel.value;
+  if (!vid) {
+    currentVenueLayout = null;
+    document.getElementById('noVenueMsg').style.display = '';
+    document.getElementById('gridWrap').style.display = 'none';
+    document.getElementById('dimLabel').textContent = '';
+    updateRunBtn();
+    return;
+  }
+  // Fetch venue layout
+  const res = await fetch(`/api/venues/${vid}`);
+  const data = await res.json();
+  currentVenueLayout = data.layout;
+  document.getElementById('noVenueMsg').style.display = 'none';
+  document.getElementById('gridWrap').style.display = '';
+  document.getElementById('dimLabel').textContent = `${data.rows}×${data.cols}`;
+  renderGrid();
+  updateRunBtn();
+}
+
+const SEAT_SIZE = 40;
+const SEAT_GAP  = 4;
+
+function renderGrid() {
+  const wrap = document.getElementById('gridWrap');
+  wrap.innerHTML = '';
+  if (!currentVenueLayout) return;
+
+  const layout = currentVenueLayout;
+  const rows   = layout.rows;
+  const cols   = layout.cols;
+
+  // Build reverse map: seat_id → participant_name (from result if available)
+  const assign = (currentResult && currentResult.assignment) ? currentResult.assignment : {};
+  const seatToName = {};
+  for (const [name, sid] of Object.entries(assign)) seatToName[sid] = name;
+
+  // Column headers
+  const hdrs = document.createElement('div');
+  hdrs.className = 'col-headers';
+  hdrs.style.cssText = `padding-left:${32+SEAT_GAP}px;gap:${SEAT_GAP}px;margin-bottom:4px;`;
+  for (let c = 0; c < cols; c++) {
+    const h = document.createElement('div');
+    h.className = 'col-hdr';
+    h.style.cssText = `width:${SEAT_SIZE}px;font-size:10px;`;
+    h.textContent = `C${c+1}`;
+    hdrs.appendChild(h);
+  }
+  wrap.appendChild(hdrs);
+
+  for (let r = 0; r < rows; r++) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'grid-row';
+    rowEl.style.cssText = `gap:${SEAT_GAP}px;margin-bottom:${SEAT_GAP}px;`;
+
+    const lbl = document.createElement('div');
+    lbl.className = 'row-lbl';
+    lbl.textContent = `R${r+1}`;
+    rowEl.appendChild(lbl);
+
+    for (let c = 0; c < cols; c++) {
+      const sid  = `R${r+1}C${c+1}`;
+      const sData = layout.seats?.[sid] || {};
+      const el   = document.createElement('div');
+      el.className = 'seat';
+      el.style.cssText = `width:${SEAT_SIZE}px;height:${SEAT_SIZE}px;`;
+
+      const isBlocked = sData.is_blocked || sData.type === 'blocked';
+      const isFront   = sData.is_front || sData.type === 'front';
+      const isAisle   = sData.is_aisle || sData.type === 'aisle';
+
+      if (isBlocked) {
+        el.classList.add('blocked');
+      } else if (seatToName[sid]) {
+        const pname = seatToName[sid];
+        const p     = participants.find(x => x.name === pname);
+        const color = groupColor(p ? p.group : null);
+        el.classList.add('assigned');
+        el.style.background = color + '33';
+        el.style.borderColor = color + '88';
+        el.style.borderWidth = '2px';
+        if (isFront) el.style.borderTopColor = '#3b82f6';
+        if (isAisle) el.style.borderLeftColor = el.style.borderRightColor = '#22c55e99';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'seat-name';
+        nameEl.textContent = pname.length > 10 ? pname.slice(0,9)+'…' : pname;
+        el.appendChild(nameEl);
+
+        const tip = document.createElement('div');
+        tip.className = 'seat-tip';
+        tip.textContent = `${pname} — ${sid}`;
+        el.appendChild(tip);
+      } else {
+        el.classList.add('empty');
+        if (isFront) el.classList.add('front-row');
+        if (isAisle) el.classList.add('aisle-seat');
+        const tip = document.createElement('div');
+        tip.className = 'seat-tip';
+        tip.textContent = sid + (isFront?' · Front':'') + (isAisle?' · Aisle':'');
+        el.appendChild(tip);
+      }
+      rowEl.appendChild(el);
+    }
+    wrap.appendChild(rowEl);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Result rendering
+// ════════════════════════════════════════════════════════════════════════
+function renderResult() {
+  const area = document.getElementById('resultArea');
+  area.innerHTML = '';
+  const pill = document.getElementById('statusPill');
+
+  if (!currentResult) {
+    pill.className = 'status-pill unsolved';
+    pill.textContent = '● Unsolved';
+    return;
+  }
+
+  if (currentResult.error && !currentResult.assignment) {
+    pill.className = 'status-pill infeasible';
+    pill.textContent = '✗ Infeasible';
+    const box = document.createElement('div');
+    box.className = 'infeasible-box';
+    box.innerHTML = `<h3>No solution found</h3><p>${esc(currentResult.error)}</p>`;
+    area.appendChild(box);
+    return;
+  }
+
+  // Solved
+  pill.className = 'status-pill solved';
+  pill.textContent = '✓ Solved';
+
+  const assign = currentResult.assignment || {};
+  const violations = currentResult.violations || [];
+  const stats = currentResult.stats || {};
+
+  const panel = document.createElement('div');
+  panel.className = 'result-panel';
+
+  // Stats row
+  panel.innerHTML = `
+    <h3>Result</h3>
+    <div style="display:flex;gap:20px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+      <div class="arr-stat">
+        <div class="arr-stat-val" style="color:var(--green)">${stats.participants||0}</div>
+        <div class="arr-stat-lbl">Seated</div>
+      </div>
+      <div class="arr-stat">
+        <div class="arr-stat-val" style="color:${violations.length===0?'var(--green)':'var(--red)'}">${violations.length}</div>
+        <div class="arr-stat-lbl">Violations</div>
+      </div>
+    </div>
+  `;
+
+  // Violations
+  if (violations.length > 0) {
+    const vbox = document.createElement('div');
+    vbox.className = 'violations-box';
+    vbox.innerHTML = `<h4>⚠ Constraint Violations</h4>` +
+      violations.map(v => `<div class="violation-item">• ${esc(v)}</div>`).join('');
+    panel.appendChild(vbox);
+  }
+
+  // Assignment table
+  const table = document.createElement('table');
+  table.className = 'assign-table';
+  table.style.marginTop = '14px';
+  table.innerHTML = '<thead><tr><th>Participant</th><th>Group</th><th>Seat</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+
+  for (const [name, sid] of Object.entries(assign).sort(([a],[b])=>a.localeCompare(b))) {
+    const p     = participants.find(x => x.name === name);
+    const color = groupColor(p ? p.group : null);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="display:flex;align-items:center;gap:7px;">
+        <span class="group-dot" style="background:${color}"></span>${esc(name)}
+      </td>
+      <td style="color:var(--muted);font-size:12px;">${p && p.group ? esc(p.group) : '—'}</td>
+      <td><span class="seat-badge">${sid}</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  panel.appendChild(table);
+  area.appendChild(panel);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Run button state
+// ════════════════════════════════════════════════════════════════════════
+function updateRunBtn() {
+  const vid = document.getElementById('venueSelect').value;
+  const canRun = !!vid && participants.length > 0;
+  document.getElementById('runBtn').disabled = !canRun;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Save
+// ════════════════════════════════════════════════════════════════════════
+async function saveArrangement() {
+  const name = document.getElementById('arrName').value.trim();
+  if (!name) { toast('Please enter a name.', 'error'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = '⟳ Saving…';
+
+  const payload = {
+    name,
+    venue_id:     document.getElementById('venueSelect').value || null,
+    participants, constraints,
+  };
+
+  try {
+    const method = ARR_ID ? 'PUT' : 'POST';
+    const url    = ARR_ID ? `/api/arrangements/${ARR_ID}` : '/api/arrangements';
+    const res    = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+    const data = await res.json();
+    clearDirty();
+    toast('Saved!', 'success');
+    if (!ARR_ID) setTimeout(() => window.location.href = `/arrangements/${data.id}`, 700);
+  } catch(e) {
+    toast(`Save failed: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Run solver
+// ════════════════════════════════════════════════════════════════════════
+async function runSolver() {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 11-6.22-8.56"/></svg> Running…`;
+
+  const pill = document.getElementById('statusPill');
+  pill.className = 'status-pill running';
+  pill.textContent = '⟳ Running…';
+
+  // Auto-save first
+  const name = document.getElementById('arrName').value.trim() || 'Unnamed';
+  const payload = {
+    name,
+    venue_id: document.getElementById('venueSelect').value || null,
+    participants, constraints,
+  };
+
+  try {
+    // Save / update
+    let arrId = ARR_ID;
+    if (!arrId) {
+      const sr = await fetch('/api/arrangements', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+      });
+      if (!sr.ok) throw new Error('Save failed');
+      arrId = (await sr.json()).id;
+      clearDirty();
+    } else {
+      await fetch(`/api/arrangements/${arrId}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+      });
+      clearDirty();
+    }
+
+    // Solve
+    const res  = await fetch(`/api/arrangements/${arrId}/solve`, { method: 'POST' });
+    const data = await res.json();
+    currentResult = data.result;
+    renderGrid();
+    renderResult();
+    toast(data.status === 'solved' ? '✓ Solution found!' : '✗ No solution found.', data.status === 'solved' ? 'success' : 'error');
+
+    // Navigate to the saved arrangement URL if new
+    if (!ARR_ID) setTimeout(() => window.location.href = `/arrangements/${arrId}`, 300);
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+    pill.className = 'status-pill unsolved';
+    pill.textContent = '● Unsolved';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run CSP Solver`;
+    updateRunBtn();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Utilities
+// ════════════════════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toastStack').appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3500);
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey||e.ctrlKey) && e.key==='s') { e.preventDefault(); saveArrangement(); }
+  if ((e.metaKey||e.ctrlKey) && e.key==='Enter') { e.preventDefault(); runSolver(); }
+  if (e.key === 'Escape') closeRosterModal();
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  Roster import modal
+// ════════════════════════════════════════════════════════════════════════
+let rosterData      = [];   // fetched from /api/participants
+let rosterSelected  = new Set();  // ids of selected roster participants
+
+async function openRosterModal() {
+  // Fetch roster (always fresh)
+  try {
+    const res = await fetch('/api/participants');
+    rosterData = await res.json();
+  } catch(e) {
+    toast('Could not load roster.', 'error'); return;
+  }
+  rosterSelected.clear();
+  document.getElementById('rosterSearch').value = '';
+  filterRoster();
+  document.getElementById('rosterModal').classList.add('open');
+}
+
+function closeRosterModal() {
+  document.getElementById('rosterModal').classList.remove('open');
+}
+
+function filterRoster() {
+  const q    = document.getElementById('rosterSearch').value.toLowerCase();
+  const list = rosterData.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.group_name||'').toLowerCase().includes(q)
+  );
+  const alreadyNames = new Set(participants.map(p => p.name));
+  const container    = document.getElementById('rosterList');
+
+  if (!list.length) {
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">No participants found.</div>';
+    return;
+  }
+
+  container.innerHTML = list.map(p => {
+    const color       = groupColor(p.group_name);
+    const isAdded     = alreadyNames.has(p.name);
+    const isSelected  = rosterSelected.has(p.id);
+    const meta        = [p.group_name, p.needs_front_row?'Front':null, p.needs_aisle?'Aisle':null]
+                          .filter(Boolean).join(' · ') || 'No special requirements';
+    return `<div class="roster-item ${isSelected?'selected':''} ${isAdded?'already-added':''}"
+                 onclick="toggleRosterItem(${p.id})" data-id="${p.id}">
+      <div class="roster-check">${isSelected ? '✓' : ''}</div>
+      <div style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0;margin-right:2px;"></div>
+      <div class="roster-item-info">
+        <div class="roster-item-name">${esc(p.name)} ${isAdded?'<span style="font-size:10px;color:var(--muted);font-weight:400;">(already added)</span>':''}</div>
+        <div class="roster-item-meta">${esc(meta)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  updateRosterSelCount();
+}
+
+function toggleRosterItem(id) {
+  if (rosterSelected.has(id)) rosterSelected.delete(id);
+  else rosterSelected.add(id);
+  filterRoster();
+}
+
+function updateRosterSelCount() {
+  const n = rosterSelected.size;
+  document.getElementById('rosterSelCount').textContent =
+    n === 0 ? '0 selected' : `${n} selected`;
+}
+
+function importSelected() {
+  if (!rosterSelected.size) { toast('Select at least one participant.', 'error'); return; }
+  const alreadyNames = new Set(participants.map(p => p.name));
+  let added = 0;
+  for (const id of rosterSelected) {
+    const rp = rosterData.find(p => p.id === id);
+    if (!rp || alreadyNames.has(rp.name)) continue;
+    participants.push({
+      name:            rp.name,
+      group:           rp.group_name || null,
+      reserved_seat:   null,
+      needs_front_row: !!rp.needs_front_row,
+      needs_aisle:     !!rp.needs_aisle,
+    });
+    added++;
+  }
+  closeRosterModal();
+  markDirty();
+  renderParticipants();
+  toast(`${added} participant${added!==1?'s':''} added.`, 'success');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Init
+// ════════════════════════════════════════════════════════════════════════
+(async function init() {
+  renderParticipants();
+  renderConstraints();
+
+  // Load venue if pre-selected
+  const vid = document.getElementById('venueSelect').value;
+  if (vid) {
+    const res  = await fetch(`/api/venues/${vid}`);
+    const data = await res.json();
+    currentVenueLayout = data.layout;
+    document.getElementById('noVenueMsg').style.display = 'none';
+    document.getElementById('gridWrap').style.display   = '';
+    document.getElementById('dimLabel').textContent = `${data.rows}×${data.cols}`;
+  }
+
+  renderGrid();
+  renderResult();
+  updateRunBtn();
+  syncCanvasTitle();
+})();
+</script>
+</body>
+</html>

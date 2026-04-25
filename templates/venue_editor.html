@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeatWise — {{ 'Edit: ' + venue.name if venue else 'New Venue' }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink:     #0b0e14; --surface: #111520; --panel: #161c2c;
+      --panel-h: #1b233a; --border: #1f2b45;  --border-h: #2e3f66;
+      --text:    #e8ecf4; --muted: #6b7a9b;    --muted-l: #8b9bbf;
+      --accent:  #f0a500; --accent-d: #c48500; --accent-dim: rgba(240,165,0,.12);
+      --green:   #22c55e; --red: #ef4444;      --blue: #3b82f6;
+      --radius:  8px;
+      /* seat type colors */
+      --seat-normal:  #1f2b45; --seat-normal-b: #2e3f66;
+      --seat-blocked: #0d1017;
+      --seat-aisle:   rgba(34,197,94,.18);  --seat-aisle-b: rgba(34,197,94,.45);
+      --seat-front:   rgba(59,130,246,.22); --seat-front-b: rgba(59,130,246,.5);
+      --seat-exit:    rgba(239,68,68,.2);   --seat-exit-b:  rgba(239,68,68,.5);
+    }
+    html, body { height: 100%; background: var(--ink); color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 14px; overflow: hidden; }
+
+    /* ── App shell ── */
+    .app { display: flex; height: 100vh; }
+
+    /* ── Left settings panel ── */
+    .settings-panel {
+      width: 260px; flex-shrink: 0;
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow-y: auto;
+      animation: slideInLeft .4s ease both;
+    }
+
+    .panel-header {
+      padding: 18px 20px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .back-btn { background: none; border: none; color: var(--muted); cursor: pointer;
+      padding: 6px; border-radius: 7px; display: flex; align-items: center;
+      transition: color .15s, background .15s; }
+    .back-btn:hover { color: var(--text); background: var(--panel); }
+    .panel-header h2 { font-family: 'Instrument Serif',serif; font-size: 18px; font-weight: 400; }
+
+    .panel-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .panel-section:last-child { border-bottom: none; flex: 1; }
+
+    .section-label { font-family: 'IBM Plex Mono',monospace; font-size: 10px;
+      letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+      margin-bottom: 12px; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    label.field-label { font-size: 12px; font-weight: 600; color: var(--muted-l);
+      letter-spacing: .03em; }
+    input[type="text"], textarea, select {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: 'DM Sans',sans-serif; font-size: 13px; padding: 8px 10px;
+      outline: none; transition: border-color .2s; width: 100%;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    textarea { resize: vertical; min-height: 60px; }
+    select option { background: var(--panel); }
+    input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px var(--panel) inset !important;
+      -webkit-text-fill-color: var(--text) !important; }
+
+    /* Number stepper */
+    .stepper { display: flex; gap: 8px; align-items: center; }
+    .stepper input { flex: 1; text-align: center; }
+    .step-btn { background: var(--panel); border: 1px solid var(--border); color: var(--text);
+      width: 30px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 16px;
+      transition: background .15s, border-color .15s; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; }
+    .step-btn:hover { background: var(--panel-h); border-color: var(--border-h); }
+
+    /* ── Tool palette ── */
+    .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .tool-btn {
+      padding: 8px 6px; border-radius: var(--radius);
+      border: 1px solid var(--border); background: var(--panel);
+      color: var(--muted-l); cursor: pointer; font-family: 'DM Sans',sans-serif;
+      font-size: 12px; font-weight: 500; transition: all .18s;
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      text-align: center; line-height: 1.2;
+    }
+    .tool-btn:hover { border-color: var(--border-h); color: var(--text); background: var(--panel-h); }
+    .tool-btn.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+    .tool-btn .tool-swatch {
+      width: 24px; height: 18px; border-radius: 4px; border: 1px solid;
+      transition: all .18s;
+    }
+
+    /* ── Save button ── */
+    .save-section { padding: 16px 20px; border-top: 1px solid var(--border); }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px 16px; border-radius: var(--radius); font-family: 'DM Sans',sans-serif;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s;
+      border: 1px solid transparent; width: 100%; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: var(--ink); box-shadow: 0 4px 16px rgba(240,165,0,.2); }
+    .btn-primary:hover { background: var(--accent-d); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-ghost { background: var(--panel); color: var(--muted-l); border-color: var(--border); margin-top: 8px; }
+    .btn-ghost:hover { background: var(--panel-h); color: var(--text); border-color: var(--border-h); }
+
+    /* ── Canvas area ── */
+    .canvas-area {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; background: var(--ink);
+    }
+
+    .canvas-toolbar {
+      height: 52px; flex-shrink: 0;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 20px; gap: 12px;
+    }
+    .canvas-title { font-family: 'Instrument Serif',serif; font-size: 17px; font-weight: 400; flex: 1; }
+    .canvas-title span { color: var(--muted); font-family: 'IBM Plex Mono',monospace; font-size: 12px; margin-left: 8px; }
+
+    .zoom-controls { display: flex; align-items: center; gap: 4px; }
+    .zoom-btn { background: var(--panel); border: 1px solid var(--border); color: var(--text);
+      width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 16px;
+      transition: background .15s; display: flex; align-items: center; justify-content: center; }
+    .zoom-btn:hover { background: var(--panel-h); }
+    .zoom-label { font-family: 'IBM Plex Mono',monospace; font-size: 11px; color: var(--muted);
+      min-width: 36px; text-align: center; }
+
+    .toolbar-divider { width: 1px; height: 24px; background: var(--border); }
+
+    .clear-btn { background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+      font-family: 'DM Sans',sans-serif; transition: all .15s; }
+    .clear-btn:hover { border-color: var(--red); color: #fca5a5; background: rgba(239,68,68,.08); }
+
+    /* ── Scrollable grid viewport ── */
+    .grid-viewport {
+      flex: 1; overflow: auto; padding: 32px;
+      display: flex; align-items: flex-start; justify-content: flex-start;
+      position: relative;
+    }
+
+    .grid-wrapper { display: inline-flex; flex-direction: column; gap: 0; user-select: none; }
+
+    /* Column headers */
+    .col-headers { display: flex; gap: 0; padding-left: 40px; margin-bottom: 4px; }
+    .col-header { font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      transition: width .2s, height .2s; }
+
+    /* Grid rows */
+    .grid-row { display: flex; align-items: center; gap: 0; }
+    .row-label { font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--muted);
+      flex-shrink: 0; text-align: right; padding-right: 8px; width: 32px; }
+
+    /* Seats */
+    .seat {
+      border: 1px solid;
+      cursor: pointer; position: relative;
+      transition: transform .08s, filter .08s;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'IBM Plex Mono',monospace; font-size: 8px; color: transparent;
+      overflow: hidden;
+    }
+    .seat:hover { transform: scale(1.12); z-index: 10; filter: brightness(1.3); }
+    .seat.painting { transform: scale(1.08); filter: brightness(1.5); }
+
+    /* Seat types */
+    .seat[data-type="normal"]  { background: var(--seat-normal);  border-color: var(--seat-normal-b); }
+    .seat[data-type="blocked"] { background: var(--seat-blocked); border-color: #1a1f2e;
+      cursor: not-allowed; opacity: .4; }
+    .seat[data-type="blocked"]::after { content: '✕'; position: absolute;
+      color: var(--muted); font-size: 10px; opacity: .6; }
+    .seat[data-type="aisle"]   { background: var(--seat-aisle);  border-color: var(--seat-aisle-b); }
+    .seat[data-type="front"]   { background: var(--seat-front);  border-color: var(--seat-front-b); }
+    .seat[data-type="exit"]    { background: var(--seat-exit);   border-color: var(--seat-exit-b); }
+
+    /* Seat label */
+    .seat.has-label { color: rgba(255,255,255,.55); font-size: 7px; }
+
+    /* Hover tooltip */
+    .seat-tooltip {
+      position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 8px; white-space: nowrap;
+      font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--muted-l);
+      pointer-events: none; z-index: 100; opacity: 0; transition: opacity .15s;
+    }
+    .seat:hover .seat-tooltip { opacity: 1; }
+
+    /* ── Right inspector panel ── */
+    .inspector {
+      width: 220px; flex-shrink: 0;
+      background: var(--surface); border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      animation: slideInRight .4s ease both;
+      overflow-y: auto;
+    }
+    .inspector-header { padding: 18px 16px 14px; border-bottom: 1px solid var(--border); }
+    .inspector-header h3 { font-family: 'Instrument Serif',serif; font-size: 16px; font-weight: 400; }
+    .inspector-header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .inspector-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+
+    .no-selection { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+    .no-selection svg { margin: 0 auto 10px; display: block; opacity: .3; }
+
+    .selected-info { }
+    .sel-id { font-family: 'IBM Plex Mono',monospace; font-size: 14px; font-weight: 500;
+      color: var(--accent); margin-bottom: 12px; }
+    .sel-type-label { font-size: 11px; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .08em; margin-bottom: 6px; }
+    .type-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+    .type-pill { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--border); background: var(--panel);
+      color: var(--muted-l); transition: all .15s; }
+    .type-pill:hover { border-color: var(--border-h); color: var(--text); }
+    .type-pill.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+
+    .label-input { margin-top: 12px; }
+
+    /* ── Toast ── */
+    .toast-stack { position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+      display: flex; flex-direction: column; gap: 6px; }
+    .toast { padding: 10px 14px; border-radius: 8px; font-size: 12px;
+      display: flex; align-items: center; gap: 7px;
+      animation: popUp .3s ease; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+    .toast.success { background: rgba(34,197,94,.15); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+    .toast.error   { background: rgba(239,68,68,.15);  border: 1px solid rgba(239,68,68,.3);  color: #fca5a5; }
+    .toast.info    { background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.3); color: #93c5fd; }
+    .toast.saving  { background: rgba(240,165,0,.12);  border: 1px solid rgba(240,165,0,.3);  color: #fcd34d; }
+
+    /* ── Unsaved indicator ── */
+    .unsaved-dot { width: 7px; height: 7px; background: var(--accent); border-radius: 50%;
+      display: none; animation: pulse 2s infinite; }
+    .unsaved-dot.show { display: block; }
+
+    @keyframes slideInLeft  { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: none; } }
+    @keyframes slideInRight { from { opacity: 0; transform: translateX(20px); }  to { opacity: 1; transform: none; } }
+    @keyframes popUp        { from { opacity: 0; transform: translateY(8px); }   to { opacity: 1; transform: none; } }
+    @keyframes pulse        { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── LEFT: Settings panel ── -->
+  <aside class="settings-panel">
+    <div class="panel-header">
+      <button class="back-btn" onclick="goBack()" title="Back to venues">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <h2>{{ 'Edit Venue' if venue else 'New Venue' }}</h2>
+      <div class="unsaved-dot" id="unsavedDot" title="Unsaved changes"></div>
+    </div>
+
+    <!-- Metadata -->
+    <div class="panel-section">
+      <div class="section-label">Details</div>
+      <div class="field">
+        <label class="field-label">Name</label>
+        <input type="text" id="venueName" placeholder="e.g. Room 101"
+               value="{{ venue.name if venue else '' }}" oninput="markDirty()" />
+      </div>
+      <div class="field">
+        <label class="field-label">Description</label>
+        <textarea id="venueDesc" placeholder="Optional description…" oninput="markDirty()">{{ venue.description if venue else '' }}</textarea>
+      </div>
+      <div class="field">
+        <label class="field-label">Type</label>
+        <select id="venueType" onchange="markDirty()">
+          {% set vtype = venue.venue_type if venue else 'classroom' %}
+          <option value="classroom" {{ 'selected' if vtype=='classroom' }}>Classroom</option>
+          <option value="auditorium" {{ 'selected' if vtype=='auditorium' }}>Auditorium</option>
+          <option value="exam_hall" {{ 'selected' if vtype=='exam_hall' }}>Exam Hall</option>
+          <option value="conference" {{ 'selected' if vtype=='conference' }}>Conference Room</option>
+          <option value="theater" {{ 'selected' if vtype=='theater' }}>Theater</option>
+          <option value="event_hall" {{ 'selected' if vtype=='event_hall' }}>Event Hall</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Grid dimensions -->
+    <div class="panel-section">
+      <div class="section-label">Grid Size</div>
+      <div class="field">
+        <label class="field-label">Rows</label>
+        <div class="stepper">
+          <button class="step-btn" onclick="adjustGrid('rows',-1)">−</button>
+          <input type="number" id="gridRows" min="1" max="30"
+                 value="{{ venue.rows if venue else 5 }}" oninput="onDimChange()" />
+          <button class="step-btn" onclick="adjustGrid('rows',1)">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label">Columns</label>
+        <div class="stepper">
+          <button class="step-btn" onclick="adjustGrid('cols',-1)">−</button>
+          <input type="number" id="gridCols" min="1" max="30"
+                 value="{{ venue.cols if venue else 6 }}" oninput="onDimChange()" />
+          <button class="step-btn" onclick="adjustGrid('cols',1)">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paint tools -->
+    <div class="panel-section">
+      <div class="section-label">Paint Tool</div>
+      <div class="tool-grid">
+        <button class="tool-btn active" id="tool-normal" onclick="setTool('normal')">
+          <div class="tool-swatch" style="background:var(--seat-normal);border-color:var(--seat-normal-b)"></div>
+          Normal
+        </button>
+        <button class="tool-btn" id="tool-blocked" onclick="setTool('blocked')">
+          <div class="tool-swatch" style="background:var(--seat-blocked);border-color:#1a1f2e"></div>
+          Blocked
+        </button>
+        <button class="tool-btn" id="tool-aisle" onclick="setTool('aisle')">
+          <div class="tool-swatch" style="background:var(--seat-aisle);border-color:var(--seat-aisle-b)"></div>
+          Aisle
+        </button>
+        <button class="tool-btn" id="tool-front" onclick="setTool('front')">
+          <div class="tool-swatch" style="background:var(--seat-front);border-color:var(--seat-front-b)"></div>
+          Front Row
+        </button>
+        <button class="tool-btn" id="tool-exit" onclick="setTool('exit')">
+          <div class="tool-swatch" style="background:var(--seat-exit);border-color:var(--seat-exit-b)"></div>
+          Exit Zone
+        </button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5;">
+        Click or drag across seats to paint. Hold <kbd style="background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Shift</kbd> to select a single seat.
+      </p>
+    </div>
+
+    <div style="flex:1"></div>
+
+    <!-- Save -->
+    <div class="save-section">
+      <button class="btn btn-primary" id="saveBtn" onclick="saveVenue()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save Venue
+      </button>
+      {% if venue %}
+      <a href="/api/venues/{{ venue.id }}/export" class="btn btn-ghost">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export JSON
+      </a>
+      {% endif %}
+    </div>
+  </aside>
+
+  <!-- ── CENTER: Canvas ── -->
+  <div class="canvas-area">
+    <div class="canvas-toolbar">
+      <div class="canvas-title" id="canvasTitle">
+        {{ venue.name if venue else 'Untitled Venue' }}
+        <span id="gridDimLabel">{{ venue.rows if venue else 5 }}×{{ venue.cols if venue else 6 }}</span>
+      </div>
+      <div class="zoom-controls">
+        <button class="zoom-btn" onclick="zoom(-1)">−</button>
+        <span class="zoom-label" id="zoomLabel">100%</span>
+        <button class="zoom-btn" onclick="zoom(1)">+</button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <button class="clear-btn" onclick="confirmClear()">Reset grid</button>
+    </div>
+
+    <div class="grid-viewport" id="gridViewport">
+      <div class="grid-wrapper" id="gridWrapper">
+        <div class="col-headers" id="colHeaders"></div>
+        <div id="seatGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Inspector ── -->
+  <aside class="inspector">
+    <div class="inspector-header">
+      <h3>Inspector</h3>
+      <p>Select a seat to edit</p>
+    </div>
+
+    <div id="noSelectionMsg">
+      <div class="no-selection">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M5 9V5h4"/><path d="M19 9V5h-4"/>
+          <path d="M5 15v4h4"/><path d="M19 15v4h-4"/>
+        </svg>
+        Click a seat to inspect it
+      </div>
+    </div>
+
+    <div id="selectionPanel" style="display:none;">
+      <div class="inspector-section">
+        <div class="sel-id" id="selId">R1C1</div>
+        <div class="sel-type-label">Seat Type</div>
+        <div class="type-pills" id="typePills">
+          <button class="type-pill" data-t="normal"  onclick="setSelectedType('normal')">Normal</button>
+          <button class="type-pill" data-t="blocked" onclick="setSelectedType('blocked')">Blocked</button>
+          <button class="type-pill" data-t="aisle"   onclick="setSelectedType('aisle')">Aisle</button>
+          <button class="type-pill" data-t="front"   onclick="setSelectedType('front')">Front</button>
+          <button class="type-pill" data-t="exit"    onclick="setSelectedType('exit')">Exit Zone</button>
+        </div>
+      </div>
+      <div class="inspector-section label-input">
+        <label class="field-label" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;">Custom Label</label>
+        <input type="text" id="seatLabelInput" placeholder="e.g. A1, VIP…"
+               style="margin-top:6px;" maxlength="8" oninput="updateSeatLabel(this.value)" />
+      </div>
+      <div class="inspector-section">
+        <div class="section-label">Position</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted-l);line-height:2;">
+          Row: <span id="selRow">—</span><br>
+          Col: <span id="selCol">—</span><br>
+          ID:  <span id="selFullId">—</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- Toast stack -->
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+//  State
+// ════════════════════════════════════════════════════════════════════════
+const VENUE_ID = {{ venue.id if venue else 'null' }};
+
+// Load existing layout or start fresh
+let seats = {};   // { "R1C1": { id, row, col, type, label, is_blocked, is_aisle, is_front } }
+let rows, cols;
+
+{% if venue %}
+  (function() {
+    const saved = {{ venue.layout_json | safe }};
+    rows = saved.rows;
+    cols = saved.cols;
+    seats = saved.seats || {};
+    document.getElementById('gridRows').value = rows;
+    document.getElementById('gridCols').value = cols;
+  })();
+{% else %}
+  rows = 5; cols = 6;
+{% endif %}
+
+let currentTool    = 'normal';
+let isPainting     = false;
+let isDirty        = false;
+let selectedSeatId = null;
+let zoomLevel      = 100;   // %
+
+// Seat size at 100% zoom
+const BASE_SIZE = 38;   // px
+const GAP       = 4;    // px
+
+// ════════════════════════════════════════════════════════════════════════
+//  Build / rebuild grid
+// ════════════════════════════════════════════════════════════════════════
+function buildGrid(keepExisting = true) {
+  rows = parseInt(document.getElementById('gridRows').value) || 5;
+  cols = parseInt(document.getElementById('gridCols').value) || 6;
+  rows = Math.max(1, Math.min(30, rows));
+  cols = Math.max(1, Math.min(30, cols));
+
+  // Rebuild seats map, preserving any existing painted state
+  const newSeats = {};
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const sid = `R${r+1}C${c+1}`;
+      if (keepExisting && seats[sid]) {
+        newSeats[sid] = { ...seats[sid], row: r, col: c, id: sid };
+        // re-derive is_front/is_aisle from position
+        newSeats[sid].is_front = (r === 0);
+        newSeats[sid].is_aisle = (c === 0 || c === cols - 1);
+      } else {
+        const is_front = (r === 0);
+        const is_aisle = (c === 0 || c === cols - 1);
+        newSeats[sid] = {
+          id: sid, row: r, col: c,
+          type: is_front ? 'front' : (is_aisle ? 'aisle' : 'normal'),
+          label: '',
+          is_blocked: false,
+          is_aisle, is_front,
+        };
+      }
+    }
+  }
+  seats = newSeats;
+  renderGrid();
+}
+
+function renderGrid() {
+  const sz   = Math.round(BASE_SIZE * zoomLevel / 100);
+  const gap  = Math.max(2, Math.round(GAP * zoomLevel / 100));
+  const fontSize = Math.max(6, Math.round(8 * zoomLevel / 100));
+
+  // Column headers
+  const colHeaders = document.getElementById('colHeaders');
+  colHeaders.innerHTML = '';
+  colHeaders.style.paddingLeft = `${32 + gap}px`;
+  colHeaders.style.gap = `${gap}px`;
+  for (let c = 0; c < cols; c++) {
+    const h = document.createElement('div');
+    h.className = 'col-header';
+    h.textContent = `C${c+1}`;
+    h.style.width = `${sz}px`;
+    h.style.fontSize = `${fontSize}px`;
+    colHeaders.appendChild(h);
+  }
+
+  // Seat grid
+  const grid = document.getElementById('seatGrid');
+  grid.innerHTML = '';
+  grid.style.display = 'flex';
+  grid.style.flexDirection = 'column';
+  grid.style.gap = `${gap}px`;
+
+  for (let r = 0; r < rows; r++) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'grid-row';
+    rowEl.style.gap = `${gap}px`;
+
+    const lbl = document.createElement('div');
+    lbl.className = 'row-label';
+    lbl.textContent = `R${r+1}`;
+    lbl.style.fontSize = `${fontSize}px`;
+    lbl.style.width = '32px';
+    rowEl.appendChild(lbl);
+
+    for (let c = 0; c < cols; c++) {
+      const sid  = `R${r+1}C${c+1}`;
+      const seat = seats[sid];
+      const el   = document.createElement('div');
+      el.className = 'seat';
+      el.dataset.id = sid;
+      el.dataset.type = seat.type;
+      el.style.width  = `${sz}px`;
+      el.style.height = `${sz}px`;
+      el.style.borderRadius = `${Math.max(3, Math.round(5 * zoomLevel / 100))}px`;
+      el.style.fontSize = `${fontSize}px`;
+
+      if (seat.label) {
+        el.classList.add('has-label');
+        el.textContent = seat.label;
+      }
+
+      // Tooltip
+      const tip = document.createElement('div');
+      tip.className = 'seat-tooltip';
+      tip.textContent = sid + (seat.label ? ` · ${seat.label}` : '');
+      el.appendChild(tip);
+
+      // Selection ring
+      if (sid === selectedSeatId) el.style.outline = '2px solid var(--accent)';
+
+      // Events
+      el.addEventListener('mousedown', e => { e.preventDefault(); onSeatDown(sid, e); });
+      el.addEventListener('mouseenter', e => { if (isPainting) onSeatPaint(sid); });
+      el.addEventListener('click', e => { if (e.shiftKey) selectSeat(sid); });
+
+      rowEl.appendChild(el);
+    }
+    grid.appendChild(rowEl);
+  }
+
+  // Global mouse up ends painting
+  document.getElementById('gridViewport').addEventListener('mouseup', () => { isPainting = false; });
+  document.getElementById('gridDimLabel').textContent = `${rows}×${cols}`;
+  document.getElementById('canvasTitle').firstChild.textContent =
+    (document.getElementById('venueName').value || 'Untitled Venue') + ' ';
+}
+
+function getSeatEl(sid) {
+  return document.querySelector(`.seat[data-id="${sid}"]`);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Painting
+// ════════════════════════════════════════════════════════════════════════
+function onSeatDown(sid, e) {
+  if (e.shiftKey) { selectSeat(sid); return; }
+  isPainting = true;
+  paintSeat(sid);
+}
+
+function onSeatPaint(sid) {
+  if (!isPainting) return;
+  paintSeat(sid);
+}
+
+function paintSeat(sid) {
+  const seat = seats[sid];
+  if (!seat) return;
+
+  const newType = currentTool;
+
+  seat.type       = newType;
+  seat.is_blocked = (newType === 'blocked');
+  seat.is_aisle   = (newType === 'aisle') || seat.is_aisle;
+
+  const el = getSeatEl(sid);
+  if (el) {
+    el.dataset.type = newType;
+    el.classList.add('painting');
+    setTimeout(() => el.classList.remove('painting'), 100);
+  }
+  markDirty();
+  if (sid === selectedSeatId) refreshInspector();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Selection / Inspector
+// ════════════════════════════════════════════════════════════════════════
+function selectSeat(sid) {
+  // Clear previous ring
+  if (selectedSeatId) {
+    const prev = getSeatEl(selectedSeatId);
+    if (prev) prev.style.outline = '';
+  }
+  selectedSeatId = sid;
+  const el = getSeatEl(sid);
+  if (el) el.style.outline = '2px solid var(--accent)';
+
+  document.getElementById('noSelectionMsg').style.display = 'none';
+  document.getElementById('selectionPanel').style.display = 'block';
+  refreshInspector();
+}
+
+function refreshInspector() {
+  if (!selectedSeatId) return;
+  const seat = seats[selectedSeatId];
+  if (!seat) return;
+
+  document.getElementById('selId').textContent    = selectedSeatId;
+  document.getElementById('selRow').textContent   = seat.row + 1;
+  document.getElementById('selCol').textContent   = seat.col + 1;
+  document.getElementById('selFullId').textContent = selectedSeatId;
+  document.getElementById('seatLabelInput').value = seat.label || '';
+
+  document.querySelectorAll('.type-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.t === seat.type);
+  });
+}
+
+function setSelectedType(type) {
+  if (!selectedSeatId) return;
+  seats[selectedSeatId].type       = type;
+  seats[selectedSeatId].is_blocked = (type === 'blocked');
+  const el = getSeatEl(selectedSeatId);
+  if (el) el.dataset.type = type;
+  refreshInspector();
+  markDirty();
+}
+
+function updateSeatLabel(val) {
+  if (!selectedSeatId) return;
+  seats[selectedSeatId].label = val;
+  const el = getSeatEl(selectedSeatId);
+  if (el) {
+    if (val) { el.classList.add('has-label'); el.childNodes[0].textContent = val; }
+    else      { el.classList.remove('has-label'); el.childNodes[0].textContent = ''; }
+    // update tooltip
+    const tip = el.querySelector('.seat-tooltip');
+    if (tip) tip.textContent = selectedSeatId + (val ? ` · ${val}` : '');
+  }
+  markDirty();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Tool selection
+// ════════════════════════════════════════════════════════════════════════
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(`tool-${tool}`);
+  if (btn) btn.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Grid dimensions
+// ════════════════════════════════════════════════════════════════════════
+let dimTimer = null;
+function onDimChange() {
+  clearTimeout(dimTimer);
+  dimTimer = setTimeout(() => buildGrid(true), 400);
+  markDirty();
+}
+
+function adjustGrid(dim, delta) {
+  const inp = document.getElementById(dim === 'rows' ? 'gridRows' : 'gridCols');
+  const val = Math.max(1, Math.min(30, parseInt(inp.value || 1) + delta));
+  inp.value = val;
+  buildGrid(true);
+  markDirty();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Zoom
+// ════════════════════════════════════════════════════════════════════════
+function zoom(dir) {
+  const steps = [50, 60, 75, 100, 125, 150, 175, 200];
+  const idx   = steps.indexOf(zoomLevel);
+  const next  = steps[Math.max(0, Math.min(steps.length-1, idx + dir))];
+  zoomLevel   = next;
+  document.getElementById('zoomLabel').textContent = next + '%';
+  renderGrid();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Dirty state
+// ════════════════════════════════════════════════════════════════════════
+function markDirty() {
+  isDirty = true;
+  document.getElementById('unsavedDot').classList.add('show');
+  document.getElementById('canvasTitle').firstChild.textContent =
+    (document.getElementById('venueName').value || 'Untitled Venue') + ' ';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Save
+// ════════════════════════════════════════════════════════════════════════
+async function saveVenue() {
+  const name = document.getElementById('venueName').value.trim();
+  if (!name) { toast('Please enter a venue name.', 'error'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '⟳ Saving…';
+
+  const payload = {
+    name,
+    description: document.getElementById('venueDesc').value.trim(),
+    venue_type:  document.getElementById('venueType').value,
+    rows, cols,
+    seats,
+  };
+
+  try {
+    const method = VENUE_ID ? 'PUT' : 'POST';
+    const url    = VENUE_ID ? `/api/venues/${VENUE_ID}` : '/api/venues';
+    const res    = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    isDirty = false;
+    document.getElementById('unsavedDot').classList.remove('show');
+    toast('Venue saved!', 'success');
+
+    // If newly created, redirect to edit URL so subsequent saves use PUT
+    if (!VENUE_ID) {
+      setTimeout(() => { window.location.href = `/venues/${data.id}/edit`; }, 800);
+    }
+  } catch(e) {
+    toast(`Save failed: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Venue`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Misc
+// ════════════════════════════════════════════════════════════════════════
+function confirmClear() {
+  if (confirm('Reset all seats to their default types?')) {
+    buildGrid(false);
+    markDirty();
+    toast('Grid reset.', 'info');
+  }
+}
+
+function goBack() {
+  if (isDirty) {
+    if (!confirm('You have unsaved changes. Leave anyway?')) return;
+  }
+  window.location.href = '/venues';
+}
+
+// Toast
+function toast(msg, type = 'success') {
+  const stack = document.getElementById('toastStack');
+  const el    = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icons = { success: '✓', error: '⚠', info: 'ℹ', saving: '⟳' };
+  el.textContent = `${icons[type] || ''} ${msg}`;
+  stack.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0'; el.style.transition = 'opacity .3s';
+    setTimeout(() => el.remove(), 300);
+  }, 3000);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); saveVenue(); }
+  const keys = { '1':'normal','2':'blocked','3':'aisle','4':'front','5':'exit' };
+  if (keys[e.key] && !e.target.matches('input,textarea')) setTool(keys[e.key]);
+});
+
+// Prevent accidental close with unsaved data
+window.addEventListener('beforeunload', e => {
+  if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// Mouse leaves viewport — stop painting
+document.getElementById('gridViewport').addEventListener('mouseleave', () => { isPainting = false; });
+
+// ════════════════════════════════════════════════════════════════════════
+//  Init
+// ════════════════════════════════════════════════════════════════════════
+buildGrid(true);
+
+// Update canvas title live
+document.getElementById('venueName').addEventListener('input', () => {
+  document.getElementById('canvasTitle').firstChild.textContent =
+    (document.getElementById('venueName').value || 'Untitled Venue') + ' ';
+});
+</script>
+</body>
+</html>

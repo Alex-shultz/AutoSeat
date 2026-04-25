@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeatWise — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:      #0b0e14;
+      --surface:  #111520;
+      --panel:    #161c2c;
+      --panel-h:  #1b233a;
+      --border:   #1f2b45;
+      --border-h: #2e3f66;
+      --text:     #e8ecf4;
+      --muted:    #6b7a9b;
+      --muted-l:  #8b9bbf;
+      --accent:   #f0a500;
+      --accent-d: #c48500;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --blue:     #3b82f6;
+      --radius:   10px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--ink);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(240,165,0,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(240,165,0,.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    /* ── Shell ── */
+    .shell {
+      position: relative; z-index: 1;
+      display: flex; height: 100vh; overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 240px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 24px 0;
+      animation: fadeSlideLeft .5s ease both;
+    }
+
+    .sidebar-logo {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 20px 28px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .logo-icon {
+      width: 34px; height: 34px;
+      border: 1.5px solid var(--accent);
+      border-radius: 7px;
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 2px; padding: 5px;
+    }
+    .logo-icon span { background: var(--accent); border-radius: 1px; opacity: .75; }
+    .logo-icon span:nth-child(2),
+    .logo-icon span:nth-child(5),
+    .logo-icon span:nth-child(8) { opacity: 0; }
+    .logo-text {
+      font-family: 'Instrument Serif', serif;
+      font-size: 19px;
+      color: var(--text);
+    }
+    .logo-text em { color: var(--accent); font-style: normal; }
+
+    .nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 14px; font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all .18s;
+      border: 1px solid transparent;
+    }
+    .nav-item:hover { background: var(--panel); color: var(--text); }
+    .nav-item.active {
+      background: var(--panel);
+      color: var(--accent);
+      border-color: var(--border);
+    }
+    .nav-item svg { flex-shrink: 0; opacity: .7; }
+    .nav-item.active svg { opacity: 1; }
+
+    .nav-section {
+      padding: 16px 12px 6px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .sidebar-footer {
+      padding: 16px 12px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .user-chip {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-d));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; color: var(--ink);
+      flex-shrink: 0;
+    }
+    .user-info { flex: 1; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 600; truncate: ellipsis; white-space: nowrap; overflow: hidden; }
+    .user-role {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; color: var(--muted); letter-spacing: .04em;
+    }
+
+    .logout-btn {
+      background: none; border: none;
+      color: var(--muted); cursor: pointer;
+      padding: 4px; border-radius: 6px;
+      transition: color .15s, background .15s;
+      display: flex; align-items: center;
+    }
+    .logout-btn:hover { color: var(--red); background: rgba(239,68,68,.08); }
+
+    /* ── Main ── */
+    .main {
+      flex: 1; overflow-y: auto;
+      padding: 36px 40px;
+      animation: fadeIn .45s ease .1s both;
+    }
+
+    .page-header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 36px;
+      flex-wrap: wrap; gap: 16px;
+    }
+    .page-header h1 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 32px; font-weight: 400;
+      letter-spacing: -.3px;
+      line-height: 1.15;
+    }
+    .page-header h1 span { color: var(--accent); font-style: italic; }
+    .page-header p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 18px;
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      transition: all .2s;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--accent); color: var(--ink);
+      box-shadow: 0 4px 16px rgba(240,165,0,.2);
+    }
+    .btn-primary:hover { background: var(--accent-d); }
+    .btn-ghost {
+      background: var(--panel); color: var(--muted-l);
+      border-color: var(--border);
+    }
+    .btn-ghost:hover { background: var(--panel-h); color: var(--text); border-color: var(--border-h); }
+
+    /* ── Stats row ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      animation: popUp .4s ease both;
+    }
+    .stat-card:nth-child(1) { animation-delay: .05s; }
+    .stat-card:nth-child(2) { animation-delay: .1s; }
+    .stat-card:nth-child(3) { animation-delay: .15s; }
+    .stat-card:nth-child(4) { animation-delay: .2s; }
+
+    .stat-label {
+      font-size: 11px; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+      font-weight: 600; margin-bottom: 10px;
+    }
+    .stat-value {
+      font-family: 'Instrument Serif', serif;
+      font-size: 34px; line-height: 1;
+      color: var(--text);
+    }
+    .stat-meta {
+      font-size: 12px; color: var(--muted);
+      margin-top: 6px; display: flex; align-items: center; gap: 4px;
+    }
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 7px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-green { background: rgba(34,197,94,.12); color: #86efac; }
+    .badge-blue  { background: rgba(59,130,246,.12); color: #93c5fd; }
+    .badge-amber { background: rgba(240,165,0,.12);  color: #fcd34d; }
+
+    /* ── Content grid ── */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+    }
+
+    .section-title {
+      font-size: 13px; font-weight: 600;
+      letter-spacing: .04em; text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::after {
+      content: ''; flex: 1;
+      height: 1px; background: var(--border);
+    }
+
+    /* Project cards */
+    .projects { display: flex; flex-direction: column; gap: 12px; }
+    .project-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex; align-items: center; gap: 16px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      animation: slideInRow .4s ease both;
+    }
+    .project-card:nth-child(1) { animation-delay: .1s; }
+    .project-card:nth-child(2) { animation-delay: .16s; }
+    .project-card:nth-child(3) { animation-delay: .22s; }
+    .project-card:hover { border-color: var(--border-h); background: var(--panel-h); }
+
+    .project-icon {
+      width: 44px; height: 44px; flex-shrink: 0;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .project-info { flex: 1; min-width: 0; }
+    .project-name { font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+    .project-meta { font-size: 12px; color: var(--muted); }
+    .project-stats {
+      display: flex; gap: 12px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .pstat { }
+    .pstat-val { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 500; }
+    .pstat-label { font-size: 11px; color: var(--muted); }
+
+    .empty-state {
+      background: var(--panel);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--muted);
+      animation: fadeIn .5s ease .3s both; opacity: 0;
+    }
+    .empty-state p { font-size: 14px; margin-top: 8px; }
+
+    /* Quick-start panel */
+    .quick-start {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      animation: popUp .4s ease .3s both;
+    }
+    .step-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+    .step {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 13px;
+    }
+    .step-num {
+      width: 24px; height: 24px; flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--ink);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px; color: var(--muted);
+    }
+    .step.done .step-num {
+      background: rgba(34,197,94,.15);
+      border-color: rgba(34,197,94,.4);
+      color: var(--green);
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeSlideLeft  { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeIn         { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes popUp          { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    @keyframes slideInRow     { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+
+    /* ── Responsive ── */
+    @media (max-width: 1100px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .content-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { padding: 20px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        {% for i in range(9) %}<span></span>{% endfor %}
+      </div>
+      <span class="logo-text">Seat<em>Wise</em></span>
+    </div>
+
+    <div class="nav">
+      <span class="nav-section">Workspace</span>
+      <a class="nav-item active" href="#">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-item" href="/venues">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Venues
+      </a>
+      <a class="nav-item" href="/participants">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Participants
+      </a>
+      <a class="nav-item" href="/arrangements">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Arrangements
+      </a>
+      <span class="nav-section">Tools</span>
+      <a class="nav-item" href="/export">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export</a>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">{{ user.username[0].upper() }}</div>
+        <div class="user-info">
+          <div class="user-name">{{ user.username }}</div>
+          <div class="user-role">{{ user.role }}</div>
+        </div>
+        <form method="POST" action="/logout" style="margin:0;">
+          <button type="submit" class="logout-btn" title="Log out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main content ── -->
+  <main class="main">
+
+    <div class="page-header">
+      <div>
+        <h1>Good morning, <span>{{ user.username }}</span></h1>
+        <p>Here's your seating workspace overview.</p>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <a href="/arrangements/new" class="btn btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Arrangement
+        </a>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Arrangements</div>
+        <div class="stat-value">{{ arrangement_count }}</div>
+        <div class="stat-meta">
+          {% if arrangement_count == 0 %}<span class="badge badge-blue">Get started</span>
+          {% else %}<span class="badge badge-green">{{ solved_count }} solved</span>{% endif %}
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Participants</div>
+        <div class="stat-value">{{ participant_total }}</div>
+        <div class="stat-meta" style="color:var(--muted)">Across all arrangements</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Venues</div>
+        <div class="stat-value">{{ venue_count }}</div>
+        <div class="stat-meta" style="color:var(--muted)">Layouts defined</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Constraints Met</div>
+        <div class="stat-value">{{ solved_count }}</div>
+        <div class="stat-meta">
+          {% if solved_count == 0 %}<span class="badge badge-amber">No runs yet</span>
+          {% else %}<span class="badge badge-green">Solved</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Content grid -->
+    <div class="content-grid">
+
+      <!-- Left: recent arrangements (real data) -->
+      <div>
+        <div class="section-title">Recent Arrangements</div>
+        <div class="projects">
+          {% if recent %}
+            {% for a in recent %}
+            <a href="/arrangements/{{ a.id }}" class="project-card" style="text-decoration:none;color:inherit;">
+              <div class="project-icon" style="background:{% if a.status=='solved' %}rgba(34,197,94,.12){% elif a.status=='infeasible' %}rgba(239,68,68,.1){% else %}rgba(240,165,0,.1){% endif %};">
+                {% if a.status == 'solved' %}✓{% elif a.status == 'infeasible' %}✗{% else %}●{% endif %}
+              </div>
+              <div class="project-info">
+                <div class="project-name">{{ a.name }}</div>
+                <div class="project-meta">
+                  {% if a.venue_name %}{{ a.venue_name }} · {% endif %}
+                  {{ (a.participants_json | from_json) | length }} participants
+                </div>
+              </div>
+              <div class="project-stats">
+                <div class="pstat">
+                  <div class="pstat-val" style="color:{% if a.status=='solved' %}var(--green){% elif a.status=='infeasible' %}var(--red){% else %}var(--accent){% endif %}">
+                    {% if a.status == 'solved' %}✓{% elif a.status == 'infeasible' %}✗{% else %}⟳{% endif %}
+                  </div>
+                  <div class="pstat-label">{{ a.status | capitalize }}</div>
+                </div>
+              </div>
+            </a>
+            {% endfor %}
+          {% else %}
+            <div class="empty-state" style="animation:fadeIn .5s ease both;">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="margin:0 auto;display:block;opacity:.4">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+              </svg>
+              <p>No arrangements yet.<br>Hit <strong style="color:var(--accent)">New Arrangement</strong> to generate your first seating chart.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Right column: quick start -->
+      <div>
+        <div class="quick-start">
+          <div class="section-title" style="margin-bottom:4px;">Quick Start</div>
+          <div class="step-list">
+            <div class="step done">
+              <div class="step-num">✓</div>
+              <span style="color:var(--muted-l)">Create your account</span>
+            </div>
+            <div class="step {% if venue_count > 0 %}done{% endif %}">
+              <div class="step-num">{% if venue_count > 0 %}✓{% else %}2{% endif %}</div>
+              <span {% if venue_count > 0 %}style="color:var(--muted-l)"{% endif %}>Define a venue layout</span>
+            </div>
+            <div class="step {% if arrangement_count > 0 %}done{% endif %}">
+              <div class="step-num">{% if arrangement_count > 0 %}✓{% else %}3{% endif %}</div>
+              <span {% if arrangement_count > 0 %}style="color:var(--muted-l)"{% endif %}>Add participants &amp; constraints</span>
+            </div>
+            <div class="step {% if solved_count > 0 %}done{% endif %}">
+              <div class="step-num">{% if solved_count > 0 %}✓{% else %}4{% endif %}</div>
+              <span {% if solved_count > 0 %}style="color:var(--muted-l)"{% endif %}>Run CSP solver → export chart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content-grid -->
+
+  </main>
+</div><!-- /shell -->
+
+</body>
+</html>

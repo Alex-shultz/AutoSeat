@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeatWise — Participants</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #0b0e14; --surface: #111520; --panel: #161c2c; --panel-h: #1b233a;
+      --border: #1f2b45; --border-h: #2e3f66; --text: #e8ecf4;
+      --muted: #6b7a9b; --muted-l: #8b9bbf;
+      --accent: #f0a500; --accent-d: #c48500; --accent-dim: rgba(240,165,0,.1);
+      --green: #22c55e; --red: #ef4444; --blue: #3b82f6; --radius: 10px;
+    }
+    html, body { height: 100%; background: var(--ink); color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 15px; }
+    body::before { content: ''; position: fixed; inset: 0; z-index: 0;
+      background-image: linear-gradient(rgba(240,165,0,.025) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(240,165,0,.025) 1px,transparent 1px);
+      background-size: 48px 48px; pointer-events: none; }
+
+    /* ── Shell ── */
+    .shell { position: relative; z-index: 1; display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── Sidebar (canonical) ── */
+    .sidebar { width: 240px; flex-shrink: 0; background: var(--surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; }
+    .sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 28px;
+      border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .logo-icon { width: 34px; height: 34px; border: 1.5px solid var(--accent); border-radius: 7px;
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 2px; padding: 5px; }
+    .logo-icon span { background: var(--accent); border-radius: 1px; opacity: .75; }
+    .logo-icon span:nth-child(2), .logo-icon span:nth-child(5), .logo-icon span:nth-child(8) { opacity: 0; }
+    .logo-text { font-family: 'Instrument Serif',serif; font-size: 19px; color: var(--text); }
+    .logo-text em { color: var(--accent); font-style: normal; }
+    .nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+      border-radius: 8px; color: var(--muted); font-size: 14px; font-weight: 500;
+      text-decoration: none; transition: all .18s; border: 1px solid transparent; }
+    .nav-item:hover { background: var(--panel); color: var(--text); }
+    .nav-item.active { background: var(--panel); color: var(--accent); border-color: var(--border); }
+    .nav-item svg { flex-shrink: 0; opacity: .7; }
+    .nav-item.active svg { opacity: 1; }
+    .nav-section { padding: 16px 12px 6px; font-family: 'IBM Plex Mono',monospace;
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+    .sidebar-footer { padding: 16px 12px 0; border-top: 1px solid var(--border); }
+    .user-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: 8px; background: var(--panel); border: 1px solid var(--border); }
+    .avatar { width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-d));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; color: var(--ink); flex-shrink: 0; }
+    .user-info { flex: 1; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role { font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--muted); }
+    .logout-btn { background: none; border: none; color: var(--muted); cursor: pointer;
+      padding: 4px; border-radius: 6px; display: flex; align-items: center; transition: all .15s; }
+    .logout-btn:hover { color: var(--red); background: rgba(239,68,68,.08); }
+
+    /* ── Main layout: content + add-form panel ── */
+    .main { flex: 1; display: flex; overflow: hidden; }
+
+    /* Participant list area */
+    .list-area { flex: 1; overflow-y: auto; padding: 36px 40px; }
+
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+    .page-header h1 { font-family: 'Instrument Serif',serif; font-size: 32px; font-weight: 400;
+      letter-spacing: -.3px; }
+    .page-header h1 span { color: var(--accent); font-style: italic; }
+    .page-header p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+    /* Search bar */
+    .search-bar { position: relative; margin-bottom: 20px; }
+    .search-bar input { width: 100%; background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text); font-family: 'DM Sans',sans-serif;
+      font-size: 14px; padding: 10px 14px 10px 38px; outline: none; transition: border-color .2s; }
+    .search-bar input:focus { border-color: var(--accent); }
+    .search-bar input::placeholder { color: var(--muted); }
+    .search-bar svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); pointer-events: none; }
+
+    /* Stats bar */
+    .stats-row { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .stat-chip { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .stat-chip-val { font-family: 'IBM Plex Mono',monospace; font-size: 18px; font-weight: 500;
+      color: var(--text); }
+    .stat-chip-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .06em; }
+
+    /* Table */
+    .p-table-wrap { background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden; }
+    .p-table { width: 100%; border-collapse: collapse; }
+    .p-table th { padding: 11px 16px; text-align: left; font-size: 11px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border); background: rgba(0,0,0,.15); }
+    .p-table td { padding: 12px 16px; border-bottom: 1px solid rgba(31,43,69,.5);
+      font-size: 14px; vertical-align: middle; }
+    .p-table tr:last-child td { border-bottom: none; }
+    .p-table tr:hover td { background: rgba(255,255,255,.02); }
+    .p-table tr { animation: slideIn .3s ease both; }
+
+    .name-cell { display: flex; align-items: center; gap: 10px; }
+    .group-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .p-name { font-weight: 600; }
+    .p-group { font-family: 'IBM Plex Mono',monospace; font-size: 11px; color: var(--muted); }
+
+    .tag { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 4px;
+      font-size: 10px; font-weight: 700; font-family: 'IBM Plex Mono',monospace;
+      margin-right: 4px; }
+    .tag-front { background: rgba(59,130,246,.15); color: #93c5fd; }
+    .tag-aisle { background: rgba(34,197,94,.12);  color: #86efac; }
+
+    .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+    .icon-btn { background: none; border: 1px solid transparent; color: var(--muted);
+      cursor: pointer; padding: 5px 8px; border-radius: 6px; font-size: 12px;
+      display: flex; align-items: center; gap: 4px; transition: all .15s;
+      font-family: 'DM Sans',sans-serif; }
+    .icon-btn:hover { background: var(--panel-h); border-color: var(--border); color: var(--text); }
+    .icon-btn.danger:hover { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.25); color: #fca5a5; }
+
+    /* Empty state */
+    .empty-row td { padding: 48px 24px; text-align: center; color: var(--muted); }
+    .empty-row td svg { margin: 0 auto 12px; display: block; opacity: .3; }
+    .empty-row td p { font-size: 14px; margin-top: 6px; }
+
+    /* ── Right: Add/Edit panel ── */
+    .form-panel { width: 280px; flex-shrink: 0; background: var(--surface);
+      border-left: 1px solid var(--border); display: flex; flex-direction: column;
+      overflow-y: auto; }
+    .form-panel-header { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
+    .form-panel-header h3 { font-family: 'Instrument Serif',serif; font-size: 18px; font-weight: 400; }
+    .form-panel-header p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    .fp-section { padding: 16px 20px; border-bottom: 1px solid var(--border); flex: 1; }
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    .field-label { font-size: 12px; font-weight: 600; color: var(--muted-l); letter-spacing: .03em; }
+    input[type="text"], textarea {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: 'DM Sans',sans-serif; font-size: 13px;
+      padding: 8px 10px; outline: none; transition: border-color .2s; width: 100%; }
+    input:focus, textarea:focus { border-color: var(--accent); }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    textarea { resize: vertical; min-height: 56px; }
+    .check-row { display: flex; align-items: center; gap: 8px; margin: 7px 0; font-size: 13px; }
+    .check-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+    .fp-actions { padding: 16px 20px; border-top: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 8px; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px 16px; border-radius: 8px; font-family: 'DM Sans',sans-serif;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s;
+      border: 1px solid transparent; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: var(--ink); box-shadow: 0 4px 12px rgba(240,165,0,.2); }
+    .btn-primary:hover { background: var(--accent-d); }
+    .btn-ghost { background: var(--panel); color: var(--muted-l); border-color: var(--border); }
+    .btn-ghost:hover { background: var(--panel-h); color: var(--text); border-color: var(--border-h); }
+
+    /* Group colour chips for filter */
+    .group-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .group-chip { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--border); background: var(--panel);
+      color: var(--muted-l); transition: all .15s; }
+    .group-chip.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+
+    /* Toast & modal */
+    .toast-stack { position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+      display: flex; flex-direction: column; gap: 6px; }
+    .toast { padding: 10px 14px; border-radius: 8px; font-size: 12px;
+      display: flex; align-items: center; gap: 7px; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+    .toast.success { background: rgba(34,197,94,.15); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+    .toast.error   { background: rgba(239,68,68,.15);  border: 1px solid rgba(239,68,68,.3);  color: #fca5a5; }
+    .modal-overlay { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.7);
+      display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+      opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 28px; max-width: 400px; width: 90%; transform: scale(.95); transition: transform .2s; }
+    .modal-overlay.open .modal { transform: scale(1); }
+    .modal h3 { font-family: 'Instrument Serif',serif; font-size: 22px; font-weight: 400; margin-bottom: 10px; }
+    .modal p { color: var(--muted); font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-danger { background: rgba(239,68,68,.1); color: #fca5a5; border: 1px solid rgba(239,68,68,.2); }
+    .btn-danger:hover { background: rgba(239,68,68,.2); }
+
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+    @media (max-width: 900px) { .form-panel { display: none; } }
+    @media (max-width: 768px) { .sidebar { display: none; } .list-area { padding: 20px; } }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">{% for i in range(9) %}<span></span>{% endfor %}</div>
+      <span class="logo-text">Seat<em>Wise</em></span>
+    </div>
+    <div class="nav">
+      <span class="nav-section">Workspace</span>
+      <a class="nav-item" href="/dashboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard</a>
+      <a class="nav-item" href="/venues">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Venues</a>
+      <a class="nav-item active" href="/participants">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Participants</a>
+      <a class="nav-item" href="/arrangements">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Arrangements</a>
+      <span class="nav-section">Tools</span>
+      <a class="nav-item" href="/export">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export</a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">{{ user.username[0].upper() }}</div>
+        <div class="user-info">
+          <div class="user-name">{{ user.username }}</div>
+          <div class="user-role">{{ user.role }}</div>
+        </div>
+        <form method="POST" action="/logout" style="margin:0;">
+          <button type="submit" class="logout-btn" title="Log out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </nav>
+
+  <!-- List area -->
+  <div class="main">
+    <div class="list-area">
+      <div class="page-header">
+        <div>
+          <h1>Participant <span>Roster</span></h1>
+          <p>Manage your global pool of participants. Import them into any arrangement.</p>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-chip">
+          <div>
+            <div class="stat-chip-val" id="statTotal">{{ participants | length }}</div>
+            <div class="stat-chip-lbl">Total</div>
+          </div>
+        </div>
+        <div class="stat-chip">
+          <div>
+            <div class="stat-chip-val" id="statGroups">0</div>
+            <div class="stat-chip-lbl">Groups</div>
+          </div>
+        </div>
+        <div class="stat-chip">
+          <div>
+            <div class="stat-chip-val" id="statFront">{{ participants | selectattr('needs_front_row') | list | length }}</div>
+            <div class="stat-chip-lbl">Front Row</div>
+          </div>
+        </div>
+        <div class="stat-chip">
+          <div>
+            <div class="stat-chip-val" id="statAisle">{{ participants | selectattr('needs_aisle') | list | length }}</div>
+            <div class="stat-chip-lbl">Aisle</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="search-bar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" placeholder="Search by name or group…" oninput="filterTable()" />
+      </div>
+
+      <!-- Group filter chips -->
+      <div class="group-filter" id="groupFilter"></div>
+
+      <!-- Table -->
+      <div class="p-table-wrap">
+        <table class="p-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Group</th>
+              <th>Requirements</th>
+              <th>Notes</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="pTableBody">
+            {% if participants %}
+              {% for p in participants %}
+              <tr data-id="{{ p.id }}" data-name="{{ p.name | lower }}" data-group="{{ p.group_name | lower }}">
+                <td>
+                  <div class="name-cell">
+                    <div class="group-dot" style="background:{{ cycler('#f0a500','#3b82f6','#22c55e','#a855f7','#ec4899','#f97316','#14b8a6') | string }}"></div>
+                    <div>
+                      <div class="p-name">{{ p.name }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="p-group">{{ p.group_name or '—' }}</span></td>
+                <td>
+                  {% if p.needs_front_row %}<span class="tag tag-front">Front</span>{% endif %}
+                  {% if p.needs_aisle %}<span class="tag tag-aisle">Aisle</span>{% endif %}
+                  {% if not p.needs_front_row and not p.needs_aisle %}
+                    <span style="color:var(--muted);font-size:12px;">None</span>
+                  {% endif %}
+                </td>
+                <td style="color:var(--muted);font-size:13px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  {{ p.notes or '—' }}
+                </td>
+                <td>
+                  <div class="row-actions">
+                    <button class="icon-btn" onclick="editParticipant({{ p.id }})">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      Edit
+                    </button>
+                    <button class="icon-btn danger" onclick="confirmDelete({{ p.id }}, '{{ p.name | e }}')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr class="empty-row">
+                <td colspan="5">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+                  </svg>
+                  <p>No participants yet. Add your first participant using the form on the right.</p>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right: Add / Edit form panel -->
+    <aside class="form-panel">
+      <div class="form-panel-header">
+        <h3 id="formTitle">Add Participant</h3>
+        <p id="formSubtitle">Fill in the details below.</p>
+      </div>
+      <div class="fp-section">
+        <input type="hidden" id="editId" value="" />
+        <div class="field">
+          <label class="field-label">Name *</label>
+          <input type="text" id="fName" placeholder="Full name" />
+        </div>
+        <div class="field">
+          <label class="field-label">Group</label>
+          <input type="text" id="fGroup" placeholder="e.g. team-A (optional)" />
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="fFront" />
+          <label for="fFront">Needs front row</label>
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="fAisle" />
+          <label for="fAisle">Needs aisle seat</label>
+        </div>
+        <div class="field" style="margin-top:8px;">
+          <label class="field-label">Notes</label>
+          <textarea id="fNotes" placeholder="Optional notes…"></textarea>
+        </div>
+      </div>
+      <div class="fp-actions">
+        <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">+ Add Participant</button>
+        <button class="btn btn-ghost" id="cancelBtn" style="display:none;" onclick="cancelEdit()">Cancel Edit</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- Delete modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3>Delete participant?</h3>
+    <p id="deleteModalText">This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let allParticipants = {{ participants | tojson }};
+let activeGroup = null;
+
+const GROUP_COLORS = ['#f0a500','#3b82f6','#22c55e','#a855f7','#ec4899','#f97316','#14b8a6','#ef4444'];
+function groupColor(group) {
+  if (!group) return '#6b7a9b';
+  let h = 0;
+  for (let i = 0; i < group.length; i++) h = (h*31 + group.charCodeAt(i)) % GROUP_COLORS.length;
+  return GROUP_COLORS[h];
+}
+
+// ── Render table from JS state ────────────────────────────────────────────────
+function renderTable(list) {
+  const tbody = document.getElementById('pTableBody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="5">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+      </svg>
+      <p>No participants match your search.</p></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map((p, i) => {
+    const color = groupColor(p.group_name);
+    const tags = [
+      p.needs_front_row ? '<span class="tag tag-front">Front</span>' : '',
+      p.needs_aisle     ? '<span class="tag tag-aisle">Aisle</span>'  : '',
+    ].join('');
+    return `<tr data-id="${p.id}" style="animation-delay:${i*0.03}s">
+      <td><div class="name-cell">
+        <div class="group-dot" style="background:${color}"></div>
+        <div class="p-name">${esc(p.name)}</div>
+      </div></td>
+      <td><span class="p-group">${esc(p.group_name || '—')}</span></td>
+      <td>${tags || '<span style="color:var(--muted);font-size:12px;">None</span>'}</td>
+      <td style="color:var(--muted);font-size:13px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.notes || '—')}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="editParticipant(${p.id})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit
+        </button>
+        <button class="icon-btn danger" onclick="confirmDelete(${p.id}, '${esc(p.name)}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>Delete
+        </button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Stats & group filter ──────────────────────────────────────────────────────
+function updateMeta() {
+  const groups = [...new Set(allParticipants.map(p => p.group_name).filter(Boolean))];
+  document.getElementById('statTotal').textContent  = allParticipants.length;
+  document.getElementById('statGroups').textContent = groups.length;
+  document.getElementById('statFront').textContent  = allParticipants.filter(p => p.needs_front_row).length;
+  document.getElementById('statAisle').textContent  = allParticipants.filter(p => p.needs_aisle).length;
+
+  const fc = document.getElementById('groupFilter');
+  fc.innerHTML = '';
+  if (groups.length) {
+    const all = document.createElement('span');
+    all.className = 'group-chip' + (!activeGroup ? ' active' : '');
+    all.textContent = 'All';
+    all.onclick = () => { activeGroup = null; updateMeta(); filterTable(); };
+    fc.appendChild(all);
+    groups.sort().forEach(g => {
+      const chip = document.createElement('span');
+      chip.className = 'group-chip' + (activeGroup === g ? ' active' : '');
+      chip.textContent = g;
+      chip.style.borderColor = groupColor(g) + '66';
+      chip.onclick = () => { activeGroup = g; updateMeta(); filterTable(); };
+      fc.appendChild(chip);
+    });
+  }
+}
+
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  let list = allParticipants;
+  if (activeGroup) list = list.filter(p => p.group_name === activeGroup);
+  if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || (p.group_name||'').toLowerCase().includes(q));
+  renderTable(list);
+}
+
+// ── Form ──────────────────────────────────────────────────────────────────────
+function clearForm() {
+  document.getElementById('editId').value = '';
+  document.getElementById('fName').value  = '';
+  document.getElementById('fGroup').value = '';
+  document.getElementById('fFront').checked = false;
+  document.getElementById('fAisle').checked = false;
+  document.getElementById('fNotes').value  = '';
+  document.getElementById('formTitle').textContent    = 'Add Participant';
+  document.getElementById('formSubtitle').textContent = 'Fill in the details below.';
+  document.getElementById('submitBtn').textContent    = '+ Add Participant';
+  document.getElementById('cancelBtn').style.display  = 'none';
+}
+
+function editParticipant(id) {
+  const p = allParticipants.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('editId').value    = id;
+  document.getElementById('fName').value     = p.name;
+  document.getElementById('fGroup').value    = p.group_name || '';
+  document.getElementById('fFront').checked  = !!p.needs_front_row;
+  document.getElementById('fAisle').checked  = !!p.needs_aisle;
+  document.getElementById('fNotes').value    = p.notes || '';
+  document.getElementById('formTitle').textContent    = 'Edit Participant';
+  document.getElementById('formSubtitle').textContent = `Editing: ${p.name}`;
+  document.getElementById('submitBtn').textContent    = 'Save Changes';
+  document.getElementById('cancelBtn').style.display  = '';
+  document.getElementById('fName').focus();
+}
+
+function cancelEdit() { clearForm(); }
+
+async function submitForm() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { toast('Name is required.', 'error'); return; }
+  const editId = document.getElementById('editId').value;
+  const payload = {
+    name,
+    group_name:      document.getElementById('fGroup').value.trim(),
+    needs_front_row: document.getElementById('fFront').checked,
+    needs_aisle:     document.getElementById('fAisle').checked,
+    notes:           document.getElementById('fNotes').value.trim(),
+  };
+  try {
+    const method = editId ? 'PUT' : 'POST';
+    const url    = editId ? `/api/participants/${editId}` : '/api/participants';
+    const res    = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    if (editId) {
+      const idx = allParticipants.findIndex(p => p.id === parseInt(editId));
+      if (idx >= 0) allParticipants[idx] = data;
+    } else {
+      allParticipants.push(data);
+      allParticipants.sort((a,b) => a.name.localeCompare(b.name));
+    }
+    clearForm();
+    updateMeta();
+    filterTable();
+    toast(editId ? 'Participant updated.' : 'Participant added.', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+let pendingDeleteId = null;
+function confirmDelete(id, name) {
+  pendingDeleteId = id;
+  document.getElementById('deleteModalText').textContent = `"${name}" will be permanently removed from the roster.`;
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('deleteModal').classList.remove('open');
+  pendingDeleteId = null;
+}
+document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+  if (!pendingDeleteId) return;
+  const id = pendingDeleteId; closeModal();
+  const res = await fetch(`/api/participants/${id}`, { method: 'DELETE' });
+  if (res.ok) {
+    allParticipants = allParticipants.filter(p => p.id !== id);
+    updateMeta(); filterTable();
+    toast('Participant deleted.', 'success');
+    if (document.getElementById('editId').value == id) cancelEdit();
+  } else { toast('Failed to delete.', 'error'); }
+});
+document.getElementById('deleteModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = (type==='success'?'✓ ':'⚠ ') + msg;
+  document.getElementById('toastStack').appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3000);
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey||e.ctrlKey) && e.key==='Enter') { e.preventDefault(); submitForm(); }
+  if (e.key === 'Escape' && document.getElementById('editId').value) cancelEdit();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+updateMeta();
+renderTable(allParticipants);
+</script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeatWise — Arrangements</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #0b0e14; --surface: #111520; --panel: #161c2c; --panel-h: #1b233a;
+      --border: #1f2b45; --border-h: #2e3f66; --text: #e8ecf4; --muted: #6b7a9b;
+      --muted-l: #8b9bbf; --accent: #f0a500; --accent-d: #c48500;
+      --green: #22c55e; --red: #ef4444; --blue: #3b82f6; --radius: 10px;
+    }
+    html, body { height: 100%; background: var(--ink); color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 15px; }
+    body::before { content: ''; position: fixed; inset: 0; z-index: 0;
+      background-image: linear-gradient(rgba(240,165,0,.025) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(240,165,0,.025) 1px,transparent 1px);
+      background-size: 48px 48px; pointer-events: none; }
+
+    .shell { position: relative; z-index: 1; display: flex; height: 100vh; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar { width: 240px; flex-shrink: 0; background: var(--surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; }
+    .sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 28px;
+      border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .logo-icon { width: 34px; height: 34px; border: 1.5px solid var(--accent); border-radius: 7px;
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 2px; padding: 5px; }
+    .logo-icon span { background: var(--accent); border-radius: 1px; opacity: .75; }
+    .logo-icon span:nth-child(2), .logo-icon span:nth-child(5), .logo-icon span:nth-child(8) { opacity: 0; }
+    .logo-text { font-family: 'Instrument Serif',serif; font-size: 19px; color: var(--text); }
+    .logo-text em { color: var(--accent); font-style: normal; }
+    .nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+      border-radius: 8px; color: var(--muted); font-size: 14px; font-weight: 500;
+      text-decoration: none; transition: all .18s; border: 1px solid transparent; }
+    .nav-item:hover { background: var(--panel); color: var(--text); }
+    .nav-item.active { background: var(--panel); color: var(--accent); border-color: var(--border); }
+    .nav-section { padding: 16px 12px 6px; font-family: 'IBM Plex Mono',monospace;
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+    .sidebar-footer { padding: 16px 12px 0; border-top: 1px solid var(--border); }
+    .user-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: 8px; background: var(--panel); border: 1px solid var(--border); }
+    .avatar { width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-d));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; color: var(--ink); flex-shrink: 0; }
+    .user-info { flex: 1; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role { font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--muted); }
+    .logout-btn { background: none; border: none; color: var(--muted); cursor: pointer;
+      padding: 4px; border-radius: 6px; display: flex; align-items: center; transition: all .15s; }
+    .logout-btn:hover { color: var(--red); background: rgba(239,68,68,.08); }
+
+    /* Main */
+    .main { flex: 1; overflow-y: auto; padding: 36px 40px; animation: fadeIn .4s ease both; }
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 36px; flex-wrap: wrap; gap: 16px; }
+    .page-header h1 { font-family: 'Instrument Serif',serif; font-size: 32px; font-weight: 400;
+      letter-spacing: -.3px; }
+    .page-header h1 span { color: var(--accent); font-style: italic; }
+    .page-header p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px;
+      border-radius: var(--radius); font-family: 'DM Sans',sans-serif; font-size: 14px;
+      font-weight: 600; cursor: pointer; text-decoration: none; transition: all .2s; border: 1px solid transparent; }
+    .btn-primary { background: var(--accent); color: var(--ink); box-shadow: 0 4px 16px rgba(240,165,0,.2); }
+    .btn-primary:hover { background: var(--accent-d); }
+    .btn-ghost  { background: var(--panel); color: var(--muted-l); border-color: var(--border); }
+    .btn-ghost:hover { background: var(--panel-h); color: var(--text); border-color: var(--border-h); }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+    .btn-danger { background: rgba(239,68,68,.1); color: #fca5a5; border-color: rgba(239,68,68,.2); }
+    .btn-danger:hover { background: rgba(239,68,68,.2); }
+
+    /* Cards */
+    .arr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px,1fr)); gap: 16px; }
+
+    .arr-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      overflow: hidden; animation: popUp .4s ease both; transition: border-color .2s, transform .15s; }
+    .arr-card:hover { border-color: var(--border-h); transform: translateY(-2px); }
+
+    .arr-card-header { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); }
+    .arr-status { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px;
+      border-radius: 20px; font-size: 11px; font-weight: 700; margin-bottom: 8px;
+      letter-spacing: .04em; text-transform: uppercase; }
+    .status-solved    { background: rgba(34,197,94,.12); color: #86efac; border: 1px solid rgba(34,197,94,.3); }
+    .status-unsolved  { background: rgba(240,165,0,.1);  color: #fcd34d; border: 1px solid rgba(240,165,0,.2); }
+    .status-infeasible{ background: rgba(239,68,68,.12); color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
+    .arr-name { font-family: 'Instrument Serif',serif; font-size: 20px; font-weight: 400; }
+    .arr-venue { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    .arr-meta { display: flex; gap: 20px; padding: 12px 20px; }
+    .arr-stat { text-align: center; }
+    .arr-stat-val { font-family: 'IBM Plex Mono',monospace; font-size: 18px; color: var(--text); }
+    .arr-stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+
+    .arr-actions { display: flex; gap: 8px; padding: 12px 20px;
+      border-top: 1px solid var(--border); background: rgba(0,0,0,.1); }
+
+    /* Empty */
+    .empty-state { grid-column: 1/-1; background: var(--panel); border: 1px dashed var(--border);
+      border-radius: 14px; padding: 64px 24px; text-align: center; color: var(--muted); }
+    .empty-state svg { margin: 0 auto 16px; display: block; opacity: .3; }
+    .empty-state h3 { font-family: 'Instrument Serif',serif; font-size: 22px; font-weight: 400;
+      color: var(--text); margin-bottom: 8px; }
+    .empty-state p { font-size: 14px; margin-bottom: 24px; }
+
+    /* Modals & toasts */
+    .modal-overlay { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.7);
+      display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+      opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 28px; max-width: 400px; width: 90%; transform: scale(.95); transition: transform .2s; }
+    .modal-overlay.open .modal { transform: scale(1); }
+    .modal h3 { font-family: 'Instrument Serif',serif; font-size: 22px; font-weight: 400; margin-bottom: 10px; }
+    .modal p { color: var(--muted); font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .toast-stack { position: fixed; bottom: 24px; right: 24px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 11px 16px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px;
+      animation: popUp .3s ease; box-shadow: 0 8px 24px rgba(0,0,0,.5); min-width: 220px; }
+    .toast.success { background: rgba(34,197,94,.15); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+    .toast.error   { background: rgba(239,68,68,.15);  border: 1px solid rgba(239,68,68,.3);  color: #fca5a5; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes popUp  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @media (max-width: 768px) { .sidebar { display: none; } .main { padding: 20px; } }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">{% for i in range(9) %}<span></span>{% endfor %}</div>
+      <span class="logo-text">Seat<em>Wise</em></span>
+    </div>
+    <div class="nav">
+      <span class="nav-section">Workspace</span>
+      <a class="nav-item" href="/dashboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard</a>
+      <a class="nav-item" href="/venues">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Venues</a>
+      <a class="nav-item" href="/participants">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Participants</a>
+      <a class="nav-item active" href="/arrangements">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Arrangements</a>
+      <span class="nav-section">Tools</span>
+      <a class="nav-item" href="/export">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export</a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">{{ user.username[0].upper() }}</div>
+        <div class="user-info">
+          <div class="user-name">{{ user.username }}</div>
+          <div class="user-role">{{ user.role }}</div>
+        </div>
+        <form method="POST" action="/logout" style="margin:0;">
+          <button type="submit" class="logout-btn" title="Log out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Seating <span>Arrangements</span></h1>
+        <p>Generate and manage CSP-solved seating charts.</p>
+      </div>
+      <a href="/arrangements/new" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Arrangement
+      </a>
+    </div>
+
+    <div class="arr-grid">
+      {% if arrangements %}
+        {% for a in arrangements %}
+        <div class="arr-card" style="animation-delay:{{ loop.index0 * 0.06 }}s">
+          <div class="arr-card-header">
+            <div class="arr-status status-{{ a.status }}">
+              {% if a.status == 'solved' %}✓ Solved
+              {% elif a.status == 'infeasible' %}✗ Infeasible
+              {% else %}● Unsolved{% endif %}
+            </div>
+            <div class="arr-name">{{ a.name }}</div>
+            <div class="arr-venue">
+              {% if a.venue_name %}📍 {{ a.venue_name }}{% else %}<em>No venue selected</em>{% endif %}
+            </div>
+          </div>
+          {% set parts = a.participants_json | from_json %}
+          {% set constrs = a.constraints_json | from_json %}
+          <div class="arr-meta">
+            <div class="arr-stat">
+              <div class="arr-stat-val">{{ parts | length }}</div>
+              <div class="arr-stat-lbl">Participants</div>
+            </div>
+            <div class="arr-stat">
+              <div class="arr-stat-val">{{ constrs | length }}</div>
+              <div class="arr-stat-lbl">Constraints</div>
+            </div>
+            {% if a.result_json %}
+              {% set result = a.result_json | from_json %}
+              <div class="arr-stat">
+                <div class="arr-stat-val" style="color:{% if result.get('violations', []) | length == 0 %}var(--green){% else %}var(--red){% endif %}">
+                  {{ result.get('violations', []) | length }}
+                </div>
+                <div class="arr-stat-lbl">Violations</div>
+              </div>
+            {% endif %}
+          </div>
+          <div class="arr-actions">
+            <a href="/arrangements/{{ a.id }}" class="btn btn-primary btn-sm">Open</a>
+            <a href="/api/arrangements/{{ a.id }}/export" class="btn btn-ghost btn-sm">JSON</a>
+            <button class="btn btn-danger btn-sm" onclick="confirmDelete({{ a.id }}, '{{ a.name | e }}')">Delete</button>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          <h3>No arrangements yet</h3>
+          <p>Create your first arrangement to generate a CSP-solved seating chart.</p>
+          <a href="/arrangements/new" class="btn btn-primary">+ New Arrangement</a>
+        </div>
+      {% endif %}
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3>Delete arrangement?</h3>
+    <p id="deleteModalText">This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+  let pendingDeleteId = null;
+  function confirmDelete(id, name) {
+    pendingDeleteId = id;
+    document.getElementById('deleteModalText').textContent = `"${name}" will be permanently deleted.`;
+    document.getElementById('deleteModal').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('deleteModal').classList.remove('open');
+    pendingDeleteId = null;
+  }
+  document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId; closeModal();
+    const res = await fetch(`/api/arrangements/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast('Arrangement deleted.', 'success');
+      setTimeout(() => location.reload(), 800);
+    } else { toast('Failed to delete.', 'error'); }
+  });
+  document.getElementById('deleteModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+  function toast(msg, type = 'success') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = (type === 'success' ? '✓ ' : '⚠ ') + msg;
+    document.getElementById('toastStack').appendChild(el);
+    setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3000);
+  }
+</script>
+</body>
+</html>
