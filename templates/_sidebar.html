@@ -1,0 +1,28 @@
+{% macro sidebar(user, active) %}
+<nav class="sidebar">
+  <div class="sidebar-title">
+    <strong>Smart Seating</strong>
+    Layout Design and Planner
+  </div>
+  <div class="nav">
+    <span class="nav-section">Workspace</span>
+    <a class="nav-item {% if active=='dashboard' %}active{% endif %}" href="/dashboard">Dashboard</a>
+    <a class="nav-item {% if active=='venues' %}active{% endif %}"    href="/venues">Venues</a>
+    <a class="nav-item {% if active=='participants' %}active{% endif %}" href="/participants">Participants</a>
+    <a class="nav-item {% if active=='arrangements' %}active{% endif %}" href="/arrangements">Arrangements</a>
+    <span class="nav-section">Tools</span>
+    <a class="nav-item {% if active=='export' %}active{% endif %}" href="/export">Export</a>
+  </div>
+  <div class="sidebar-footer">
+    <div class="user-row">
+      <div>
+        <div style="font-weight:600;font-size:13px;">{{ user.username }}</div>
+        <div class="role">{{ user.role }}</div>
+      </div>
+      <form method="POST" action="/logout" style="margin:0">
+        <button type="submit" class="logout-btn" title="Log out">out</button>
+      </form>
+    </div>
+  </div>
+</nav>
+{% endmacro %}

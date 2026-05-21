@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Smart Seating Layout Design and Planner — Participants</title>
+  <link rel="stylesheet" href="/static/base.css" />
+  <style>
+    .main { display:flex; overflow:hidden; flex:1; }
+    .list-area { flex:1; overflow-y:auto; padding:28px 32px; }
+    .form-panel { width:240px; flex-shrink:0; border-left:1px solid var(--border);
+      background:var(--surface); display:flex; flex-direction:column; overflow-y:auto; }
+    .fp-hdr { padding:12px 14px; border-bottom:1px solid var(--border); }
+    .fp-hdr h3 { font-size:14px; font-weight:700; }
+    .fp-body { padding:14px; flex:1; }
+    .fp-actions { padding:12px 14px; border-top:1px solid var(--border);
+      display:flex; flex-direction:column; gap:6px; }
+    .search-wrap { position:relative; margin-bottom:14px; }
+    .search-wrap input { padding-left:10px; }
+    .group-filter { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:14px; }
+    .group-chip { padding:3px 9px; border-radius:3px; font-size:11px; font-weight:600;
+      cursor:pointer; border:1px solid var(--border); background:#fff; }
+    .group-chip.active { border-color:var(--accent); background:#e8f0ff; color:var(--accent); }
+    .name-cell { display:flex; align-items:center; gap:7px; }
+    .group-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  </style>
+</head>
+<body>
+{% from '_sidebar.html' import sidebar %}
+<div class="shell">
+  {{ sidebar(user, 'participants') }}
+  <div class="main">
+    <div class="list-area">
+      <div class="page-header">
+        <div>
+          <h1>Participant Roster</h1>
+          <p>Global pool of participants. Import them into any arrangement.</p>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-box"><div class="val" id="statTotal">0</div><div class="lbl">Total</div></div>
+        <div class="stat-box"><div class="val" id="statGroups">0</div><div class="lbl">Groups</div></div>
+        <div class="stat-box"><div class="val" id="statFront">0</div><div class="lbl">Front Row</div></div>
+        <div class="stat-box"><div class="val" id="statAisle">0</div><div class="lbl">Aisle</div></div>
+      </div>
+
+      <div class="search-wrap">
+        <input type="text" id="searchInput" placeholder="Search by name or group…"
+               oninput="filterTable()" />
+      </div>
+      <div class="group-filter" id="groupFilter"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th><th>Group</th><th>Requirements</th>
+              <th>Notes</th><th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="pTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- right panel -->
+    <aside class="form-panel">
+      <div class="fp-hdr">
+        <h3 id="formTitle">Add Participant</h3>
+      </div>
+      <div class="fp-body">
+        <input type="hidden" id="editId" />
+        <div class="field">
+          <label class="field-label">Name *</label>
+          <input type="text" id="fName" placeholder="Full name" />
+        </div>
+        <div class="field">
+          <label class="field-label">Group</label>
+          <input type="text" id="fGroup" placeholder="e.g. team-A (optional)" />
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="fFront" />
+          <label for="fFront">Needs front row</label>
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="fAisle" />
+          <label for="fAisle">Needs aisle seat</label>
+        </div>
+        <div class="field" style="margin-top:8px;">
+          <label class="field-label">Notes</label>
+          <textarea id="fNotes" placeholder="Optional notes…"></textarea>
+        </div>
+      </div>
+      <div class="fp-actions">
+        <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">+ Add Participant</button>
+        <button class="btn btn-secondary" id="cancelBtn" style="display:none" onclick="cancelEdit()">Cancel Edit</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3>Delete participant?</h3>
+    <p id="deleteModalText">This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+let allParticipants = {{ participants | tojson }};
+let activeGroup = null;
+const COLORS = ['#1a56db','#1a7a3c','#7a1a7a','#cc6600','#cc0000','#006699','#556600'];
+function groupColor(g){
+  if(!g) return '#aaa';
+  let h=0; for(let i=0;i<g.length;i++) h=(h*31+g.charCodeAt(i))%COLORS.length;
+  return COLORS[h];
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function renderTable(list){
+  const tb=document.getElementById('pTableBody');
+  if(!list.length){
+    tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted);">No participants found.</td></tr>';
+    return;
+  }
+  tb.innerHTML=list.map(p=>{
+    const tags=[
+      p.needs_front_row?'<span class="tag tag-front">Front</span>':'',
+      p.needs_aisle?'<span class="tag tag-aisle">Aisle</span>':''
+    ].join('');
+    return `<tr data-id="${p.id}">
+      <td><div class="name-cell">
+        <div class="group-dot" style="background:${groupColor(p.group_name)}"></div>
+        <strong>${esc(p.name)}</strong>
+      </div></td>
+      <td class="text-muted" style="font-size:12px;">${esc(p.group_name||'—')}</td>
+      <td>${tags||'<span style="color:var(--muted);font-size:12px;">None</span>'}</td>
+      <td class="text-muted" style="font-size:12px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.notes||'—')}</td>
+      <td style="text-align:right;">
+        <button class="btn btn-secondary btn-sm" onclick="editParticipant(${p.id})" style="margin-right:4px;">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelete(${p.id},'${esc(p.name)}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateMeta(){
+  const groups=[...new Set(allParticipants.map(p=>p.group_name).filter(Boolean))];
+  document.getElementById('statTotal').textContent=allParticipants.length;
+  document.getElementById('statGroups').textContent=groups.length;
+  document.getElementById('statFront').textContent=allParticipants.filter(p=>p.needs_front_row).length;
+  document.getElementById('statAisle').textContent=allParticipants.filter(p=>p.needs_aisle).length;
+  const fc=document.getElementById('groupFilter');
+  fc.innerHTML='';
+  if(groups.length){
+    const all=document.createElement('span'); all.className='group-chip'+(activeGroup?'':' active');
+    all.textContent='All'; all.onclick=()=>{activeGroup=null;updateMeta();filterTable();};
+    fc.appendChild(all);
+    groups.sort().forEach(g=>{
+      const c=document.createElement('span'); c.className='group-chip'+(activeGroup===g?' active':'');
+      c.textContent=g; c.onclick=()=>{activeGroup=g;updateMeta();filterTable();};
+      fc.appendChild(c);
+    });
+  }
+}
+function filterTable(){
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  let list=allParticipants;
+  if(activeGroup) list=list.filter(p=>p.group_name===activeGroup);
+  if(q) list=list.filter(p=>p.name.toLowerCase().includes(q)||(p.group_name||'').toLowerCase().includes(q));
+  renderTable(list);
+}
+function clearForm(){
+  document.getElementById('editId').value='';
+  ['fName','fGroup','fNotes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fFront').checked=false;
+  document.getElementById('fAisle').checked=false;
+  document.getElementById('formTitle').textContent='Add Participant';
+  document.getElementById('submitBtn').textContent='+ Add Participant';
+  document.getElementById('cancelBtn').style.display='none';
+}
+function editParticipant(id){
+  const p=allParticipants.find(x=>x.id===id); if(!p) return;
+  document.getElementById('editId').value=id;
+  document.getElementById('fName').value=p.name;
+  document.getElementById('fGroup').value=p.group_name||'';
+  document.getElementById('fFront').checked=!!p.needs_front_row;
+  document.getElementById('fAisle').checked=!!p.needs_aisle;
+  document.getElementById('fNotes').value=p.notes||'';
+  document.getElementById('formTitle').textContent='Edit: '+p.name;
+  document.getElementById('submitBtn').textContent='Save Changes';
+  document.getElementById('cancelBtn').style.display='';
+  document.getElementById('fName').focus();
+}
+function cancelEdit(){ clearForm(); }
+async function submitForm(){
+  const name=document.getElementById('fName').value.trim();
+  if(!name){toast('Name is required.','error');return;}
+  const editId=document.getElementById('editId').value;
+  const payload={name,group_name:document.getElementById('fGroup').value.trim(),
+    needs_front_row:document.getElementById('fFront').checked,
+    needs_aisle:document.getElementById('fAisle').checked,
+    notes:document.getElementById('fNotes').value.trim()};
+  try{
+    const method=editId?'PUT':'POST';
+    const url=editId?`/api/participants/${editId}`:'/api/participants';
+    const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
+    if(editId){
+      const idx=allParticipants.findIndex(p=>p.id===parseInt(editId));
+      if(idx>=0) allParticipants[idx]=data;
+    } else {
+      allParticipants.push(data);
+      allParticipants.sort((a,b)=>a.name.localeCompare(b.name));
+    }
+    clearForm(); updateMeta(); filterTable();
+    toast(editId?'Updated.':'Added.','success');
+  }catch(e){toast(e.message,'error');}
+}
+let pendingDeleteId=null;
+function confirmDelete(id,name){
+  pendingDeleteId=id;
+  document.getElementById('deleteModalText').textContent=`"${name}" will be permanently removed.`;
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('deleteModal').classList.remove('open'); pendingDeleteId=null;
+}
+document.getElementById('confirmDeleteBtn').addEventListener('click',async()=>{
+  if(!pendingDeleteId) return;
+  const id=pendingDeleteId; closeModal();
+  const res=await fetch(`/api/participants/${id}`,{method:'DELETE'});
+  if(res.ok){
+    allParticipants=allParticipants.filter(p=>p.id!==id);
+    updateMeta(); filterTable(); toast('Deleted.','success');
+    if(document.getElementById('editId').value==id) cancelEdit();
+  } else toast('Failed.','error');
+});
+document.getElementById('deleteModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+function toast(msg,type='success'){
+  const el=document.createElement('div'); el.className=`toast ${type}`; el.textContent=msg;
+  document.getElementById('toastStack').appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();submitForm();}
+  if(e.key==='Escape'&&document.getElementById('editId').value) cancelEdit();
+});
+updateMeta(); renderTable(allParticipants);
+</script>
+</body>
+</html>

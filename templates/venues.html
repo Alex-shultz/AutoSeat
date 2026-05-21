@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Smart Seating Layout Design and Planner — Venues</title>
+  <link rel="stylesheet" href="/static/base.css" />
+</head>
+<body>
+{% from '_sidebar.html' import sidebar %}
+<div class="shell">
+  {{ sidebar(user, 'venues') }}
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Venue Layouts</h1>
+        <p>Define and manage room grid configurations.</p>
+      </div>
+      <a href="/venues/new" class="btn btn-primary">+ New Venue</a>
+    </div>
+
+    {% if venues %}
+    <div class="card-grid">
+      {% for v in venues %}
+      <div class="card">
+        <div class="card-header">
+          <h3>{{ v.name }}</h3>
+          <div class="text-muted" style="font-size:12px;margin-top:2px;">
+            {{ v.venue_type }} · {{ v.rows }}×{{ v.cols }} grid
+          </div>
+          {% if v.description %}
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;">{{ v.description }}</div>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          {% set layout = v.layout_json | from_json %}
+          {% set stats = layout.get('stats', {}) %}
+          <div class="stat-row" style="margin-bottom:0;gap:12px;">
+            <div class="stat-box" style="min-width:60px;">
+              <div class="val" style="font-size:16px;">{{ stats.get('available','—') }}</div>
+              <div class="lbl">Available</div>
+            </div>
+            <div class="stat-box" style="min-width:60px;">
+              <div class="val" style="font-size:16px;">{{ stats.get('blocked','—') }}</div>
+              <div class="lbl">Blocked</div>
+            </div>
+            <div class="stat-box" style="min-width:60px;">
+              <div class="val" style="font-size:16px;">{{ stats.get('aisle','—') }}</div>
+              <div class="lbl">Aisle</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <a href="/venues/{{ v.id }}/edit" class="btn btn-secondary btn-sm">Edit</a>
+          <a href="/api/venues/{{ v.id }}/export" class="btn btn-secondary btn-sm">JSON</a>
+          <button class="btn btn-danger btn-sm"
+                  onclick="confirmDelete({{ v.id }}, '{{ v.name | e }}')">Delete</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <h3>No venues yet</h3>
+      <p>Create a venue layout to start generating seating arrangements.</p>
+      <a href="/venues/new" class="btn btn-primary">+ New Venue</a>
+    </div>
+    {% endif %}
+  </main>
+</div>
+
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3>Delete venue?</h3>
+    <p id="deleteModalText">This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+  let pendingId = null;
+  function confirmDelete(id, name) {
+    pendingId = id;
+    document.getElementById('deleteModalText').textContent = `"${name}" will be permanently deleted.`;
+    document.getElementById('deleteModal').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('deleteModal').classList.remove('open');
+    pendingId = null;
+  }
+  document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+    if (!pendingId) return;
+    const id = pendingId; closeModal();
+    const res = await fetch(`/api/venues/${id}`, { method: 'DELETE' });
+    if (res.ok) { toast('Venue deleted.', 'success'); setTimeout(() => location.reload(), 700); }
+    else toast('Failed to delete.', 'error');
+  });
+  document.getElementById('deleteModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+  function toast(msg, type='success') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`; el.textContent = msg;
+    document.getElementById('toastStack').appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+</script>
+</body>
+</html>

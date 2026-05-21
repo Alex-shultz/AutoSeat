@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Seating Layout Design and Planner — Sign In</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --border:#d0d0d0; --accent:#1a56db; --danger:#cc0000;
+      --surface:#f5f5f5; --muted:#555; --radius:4px; }
+    body { font-family: system-ui, Arial, sans-serif; font-size: 14px;
+      background: #fff; color: #111; display: flex;
+      align-items: center; justify-content: center; min-height: 100vh; }
+    .wrap { width: 340px; padding: 32px 28px; border: 1px solid var(--border);
+      border-radius: var(--radius); }
+    h1 { font-size: 15px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 20px; }
+    .tabs { display: flex; border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; margin-bottom: 20px; }
+    .tab { flex: 1; padding: 7px; background: var(--surface); border: none;
+      cursor: pointer; font-size: 13px; font-family: inherit; }
+    .tab.active { background: var(--accent); color: #fff; font-weight: 600; }
+    .form { display: none; flex-direction: column; gap: 12px; }
+    .form.active { display: flex; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    input { border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 7px 9px; font-size: 13px; font-family: inherit;
+      outline: none; width: 100%; }
+    input:focus { border-color: var(--accent); }
+    .btn { width: 100%; padding: 8px; background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius); font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit; }
+    .btn:hover { background: #1446b8; }
+    .flash { padding: 8px 10px; border-radius: var(--radius); font-size: 12px;
+      margin-bottom: 14px; border: 1px solid; }
+    .flash.error   { background: #fff0f0; border-color: #f5b8b8; color: var(--danger); }
+    .flash.success { background: #e8fff0; border-color: #a3e0b8; color: #1a7a3c; }
+    .flash.info    { background: #e8f0ff; border-color: #b3d0ff; color: var(--accent); }
+    .pw-wrap { position: relative; }
+    .pw-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 12px; padding: 0; }
+    .strength { height: 3px; background: #eee; border-radius: 2px; overflow: hidden; }
+    .strength-fill { height: 100%; width: 0; transition: width .3s, background .3s; }
+    .switch-link { text-align: center; font-size: 12px; color: var(--muted);
+      margin-top: 4px; }
+    .switch-link a { color: var(--accent); cursor: pointer; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Smart Seating Layout Design and Planner</h1>
+  <p class="subtitle">Constraint-based seating generation</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="tabs">
+    <button class="tab {% if active_tab=='login' %}active{% endif %}"
+            onclick="switchTab('login')">Sign In</button>
+    <button class="tab {% if active_tab=='register' %}active{% endif %}"
+            onclick="switchTab('register')">Register</button>
+  </div>
+
+  <!-- Login -->
+  <form method="POST" action="/auth"
+        class="form {% if active_tab=='login' %}active{% endif %}" id="form-login">
+    <input type="hidden" name="action" value="login" />
+    <div class="field">
+      <label>Username or Email</label>
+      <input type="text" name="identifier" placeholder="you@example.com"
+             autocomplete="username" required />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <div class="pw-wrap">
+        <input type="password" id="lpw" name="password"
+               placeholder="password" autocomplete="current-password" required />
+        <button type="button" class="pw-toggle" onclick="togglePw('lpw')">show</button>
+      </div>
+    </div>
+    <button type="submit" class="btn">Sign In</button>
+    <p class="switch-link">No account? <a onclick="switchTab('register')">Register</a></p>
+  </form>
+
+  <!-- Register -->
+  <form method="POST" action="/auth"
+        class="form {% if active_tab=='register' %}active{% endif %}" id="form-register">
+    <input type="hidden" name="action" value="register" />
+    <div class="field">
+      <label>Username</label>
+      <input type="text" name="username" placeholder="plannerName"
+             autocomplete="username" minlength="3" required />
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" name="email" placeholder="you@example.com"
+             autocomplete="email" required />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <div class="pw-wrap">
+        <input type="password" id="rpw" name="password"
+               placeholder="min. 8 characters" autocomplete="new-password"
+               minlength="8" required oninput="updateStrength(this.value)" />
+        <button type="button" class="pw-toggle" onclick="togglePw('rpw')">show</button>
+      </div>
+      <div class="strength"><div class="strength-fill" id="sf"></div></div>
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input type="password" name="confirm" placeholder="repeat password"
+             autocomplete="new-password" required />
+    </div>
+    <button type="submit" class="btn">Create Account</button>
+    <p class="switch-link">Have an account? <a onclick="switchTab('login')">Sign in</a></p>
+  </form>
+</div>
+
+<script>
+  function switchTab(t) {
+    document.querySelectorAll('.tab').forEach((b,i)=>
+      b.classList.toggle('active',['login','register'][i]===t));
+    document.querySelectorAll('.form').forEach(f=>
+      f.classList.toggle('active',f.id==='form-'+t));
+    history.replaceState(null,'','?tab='+t);
+  }
+  function togglePw(id) {
+    const i = document.getElementById(id);
+    i.type = i.type==='password' ? 'text' : 'password';
+  }
+  function updateStrength(pw) {
+    let s = 0;
+    if(pw.length>=8) s++;
+    if(pw.length>=12) s++;
+    if(/[A-Z]/.test(pw)&&/[a-z]/.test(pw)) s++;
+    if(/\d/.test(pw)) s++;
+    if(/[^a-zA-Z\d]/.test(pw)) s++;
+    const fill=document.getElementById('sf');
+    const colors=['#cc0000','#e06000','#cc9900','#1a7a3c','#1a7a3c'];
+    fill.style.width=(s*20)+'%';
+    fill.style.background=colors[s-1]||'transparent';
+  }
+</script>
+</body>
+</html>

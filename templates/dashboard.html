@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Smart Seating Layout Design and Planner — Dashboard</title>
+  <link rel="stylesheet" href="/static/base.css" />
+</head>
+<body>
+{% from '_sidebar.html' import sidebar %}
+<div class="shell">
+  {{ sidebar(user, 'dashboard') }}
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Dashboard</h1>
+        <p>Welcome, {{ user.username }}.</p>
+      </div>
+      <a href="/arrangements/new" class="btn btn-primary">+ New Arrangement</a>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="val">{{ arrangement_count }}</div>
+        <div class="lbl">Arrangements</div>
+      </div>
+      <div class="stat-box">
+        <div class="val">{{ solved_count }}</div>
+        <div class="lbl">Solved</div>
+      </div>
+      <div class="stat-box">
+        <div class="val">{{ venue_count }}</div>
+        <div class="lbl">Venues</div>
+      </div>
+      <div class="stat-box">
+        <div class="val">{{ participant_total }}</div>
+        <div class="lbl">Participants</div>
+      </div>
+    </div>
+
+    <h2 style="font-size:14px;font-weight:700;margin-bottom:12px;">Recent Arrangements</h2>
+
+    {% if recent %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Venue</th>
+            <th>Participants</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in recent %}
+          <tr>
+            <td><strong>{{ a.name }}</strong></td>
+            <td class="text-muted">{{ a.venue_name or '—' }}</td>
+            <td class="mono">{{ (a.participants_json | from_json) | length }}</td>
+            <td><span class="status-badge status-{{ a.status }}">{{ a.status }}</span></td>
+            <td><a href="/arrangements/{{ a.id }}" class="btn btn-secondary btn-sm">Open</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <h3>No arrangements yet</h3>
+      <p>Create your first arrangement to get started.</p>
+      <a href="/arrangements/new" class="btn btn-primary">+ New Arrangement</a>
+    </div>
+    {% endif %}
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border);">
+      <h2 style="font-size:14px;font-weight:700;margin-bottom:12px;">Quick Start</h2>
+      <ol style="font-size:13px;padding-left:20px;color:var(--muted);line-height:2;">
+        <li style="color:#111">Create your account ✓</li>
+        <li {% if venue_count > 0 %}style="color:#111"{% endif %}>
+          Define a venue layout {% if venue_count > 0 %}✓{% endif %}
+          {% if venue_count == 0 %}— <a href="/venues/new">create one</a>{% endif %}
+        </li>
+        <li {% if arrangement_count > 0 %}style="color:#111"{% endif %}>
+          Add participants &amp; constraints {% if arrangement_count > 0 %}✓{% endif %}
+        </li>
+        <li {% if solved_count > 0 %}style="color:#111"{% endif %}>
+          Run the CSP solver {% if solved_count > 0 %}✓{% endif %}
+        </li>
+      </ol>
+    </div>
+  </main>
+</div>
+</body>
+</html>

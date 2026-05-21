@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Smart Seating Layout Design and Planner — {{ 'Edit: ' + arrangement.name if arrangement else 'New Arrangement' }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --border:#d0d0d0; --accent:#1a56db; --danger:#cc0000;
+            --surface:#f5f5f5; --muted:#555; --green:#1a7a3c; --radius:4px; }
+    html,body { height:100%; font-family:system-ui,Arial,sans-serif;
+      font-size:13px; background:#fff; color:#111; overflow:hidden; }
+    .app { display:flex; height:100vh; overflow:hidden; }
+
+    /* LEFT config panel */
+    .config { width:260px; flex-shrink:0; border-right:1px solid var(--border);
+      background:var(--surface); display:flex; flex-direction:column; overflow-y:auto; }
+    .panel-hdr { padding:11px 14px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; gap:8px; }
+    .back-btn { background:none; border:1px solid var(--border); border-radius:var(--radius);
+      padding:3px 8px; cursor:pointer; font-size:12px; font-family:inherit; }
+    .back-btn:hover { background:#e8e8e8; }
+    .panel-hdr h2 { font-size:14px; font-weight:700; flex:1; }
+    .dirty-dot { width:8px; height:8px; background:var(--accent); border-radius:50%; display:none; }
+    .dirty-dot.show { display:block; }
+    .section { padding:11px 14px; border-bottom:1px solid var(--border); }
+    .sec-label { font-size:10px; font-weight:700; letter-spacing:.08em;
+      text-transform:uppercase; color:var(--muted); margin-bottom:7px; }
+    .field { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+    .field:last-child { margin-bottom:0; }
+    .field-label { font-size:11px; font-weight:600; color:var(--muted); }
+    input[type="text"],select { border:1px solid var(--border); border-radius:var(--radius);
+      padding:6px 8px; font-size:12px; font-family:inherit; outline:none;
+      width:100%; background:#fff; }
+    input:focus,select:focus { border-color:var(--accent); }
+    input::placeholder { color:#aaa; }
+    select option { background:#fff; }
+
+    .sec-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; }
+    .sec-row .sec-label { margin-bottom:0; }
+    .roster-btn { background:none; border:1px solid var(--border); border-radius:var(--radius);
+      padding:2px 8px; cursor:pointer; font-size:11px; font-family:inherit; }
+    .roster-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+    /* participant rows */
+    .p-list { display:flex; flex-direction:column; gap:4px; }
+    .p-row { background:#fff; border:1px solid var(--border); border-radius:var(--radius);
+      padding:7px 10px; display:flex; flex-direction:column; gap:4px; }
+    .p-row-top { display:flex; align-items:center; gap:6px; }
+    .p-name { flex:1; font-size:12px; font-weight:600; }
+    .p-group { font-size:11px; color:var(--muted); font-family:"Courier New",monospace; }
+    .p-tags { display:flex; gap:3px; flex-wrap:wrap; }
+    .ptag { padding:1px 5px; border-radius:3px; font-size:10px; font-weight:600; border:1px solid; }
+    .ptag-front { background:#e8f0ff; color:var(--accent); border-color:#b3d0ff; }
+    .ptag-aisle { background:#e8fff0; color:var(--green); border-color:#a3e0b8; }
+    .ptag-seat  { background:#fff8e0; color:#7a5a00; border-color:#e0c860; }
+    .del-btn { background:none; border:none; cursor:pointer; color:var(--muted);
+      font-size:14px; line-height:1; padding:0 2px; }
+    .del-btn:hover { color:var(--danger); }
+
+    /* constraint rows */
+    .c-list { display:flex; flex-direction:column; gap:4px; }
+    .c-row { background:#fff; border:1px solid var(--border); border-radius:var(--radius);
+      padding:7px 10px; display:flex; gap:8px; align-items:flex-start; }
+    .c-info { flex:1; min-width:0; }
+    .c-type { font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+      color:var(--accent); margin-bottom:2px; }
+    .c-desc { font-size:11px; color:var(--muted); }
+
+    /* actions */
+    .action-section { padding:11px 14px; border-top:1px solid var(--border);
+      display:flex; flex-direction:column; gap:6px; }
+    .btn { display:flex; align-items:center; justify-content:center; gap:5px;
+      padding:8px; border-radius:var(--radius); font-family:inherit;
+      font-size:12px; font-weight:600; cursor:pointer; border:1px solid transparent;
+      text-decoration:none; transition:background .12s; }
+    .btn:hover { text-decoration:none; }
+    .btn-primary  { background:var(--accent); color:#fff; }
+    .btn-primary:hover { background:#1446b8; }
+    .btn-run { background:#1a7a3c; color:#fff; }
+    .btn-run:hover { background:#145e2e; }
+    .btn-run:disabled { background:#ccc; cursor:not-allowed; color:#888; }
+    .btn-secondary { background:var(--surface); color:#111; border-color:var(--border); }
+    .btn-secondary:hover { background:#e8e8e8; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+
+    /* CENTRE canvas */
+    .canvas-area { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .canvas-toolbar { height:42px; border-bottom:1px solid var(--border); background:var(--surface);
+      display:flex; align-items:center; padding:0 16px; gap:12px; flex-shrink:0; }
+    .canvas-name { font-size:14px; font-weight:700; flex:1; overflow:hidden;
+      white-space:nowrap; text-overflow:ellipsis; }
+    .status-pill { padding:3px 8px; border-radius:3px; font-size:11px; font-weight:700;
+      border:1px solid; text-transform:uppercase; }
+    .status-pill.solved     { background:#e8fff0; border-color:#a3e0b8; color:var(--green); }
+    .status-pill.unsolved   { background:#fff8e0; border-color:#e0c860; color:#7a5a00; }
+    .status-pill.infeasible { background:#fff0f0; border-color:#f5b8b8; color:var(--danger); }
+    .status-pill.running    { background:#e8f0ff; border-color:#b3d0ff; color:var(--accent); }
+    .grid-vp { flex:1; overflow:auto; padding:20px;
+      display:flex; flex-direction:column; gap:20px; align-items:flex-start; }
+    .no-venue-msg { font-size:13px; color:var(--muted); padding:8px 0; }
+
+    /* seat grid */
+    .grid-wrap { display:inline-flex; flex-direction:column; user-select:none; }
+    .col-hdrs { display:flex; }
+    .col-hdr  { font-size:10px; color:var(--muted); display:flex;
+      align-items:center; justify-content:center;
+      font-family:"Courier New",monospace; }
+    .grid-row { display:flex; align-items:center; }
+    .row-lbl  { font-size:10px; color:var(--muted); width:26px; text-align:right;
+      padding-right:5px; flex-shrink:0; font-family:"Courier New",monospace; }
+    .seat { border:1px solid; display:flex; align-items:center; justify-content:center;
+      overflow:hidden; position:relative; }
+    .seat.empty    { background:#f0f4ff; border-color:#c0d0f0; }
+    .seat.blocked  { background:#eee; border-color:#ccc; opacity:.35; }
+    .seat.blocked::after { content:'✕'; color:#999; font-size:9px; position:absolute; }
+    .seat.assigned { border-width:2px; }
+    .seat.front-row { border-top:2px solid #b3d0ff; }
+    .seat.aisle-seat { border-left:2px solid #a3e0b8; border-right:2px solid #a3e0b8; }
+    .seat-name { font-size:7px; text-align:center; line-height:1.2;
+      padding:2px; color:#111; overflow:hidden; word-break:break-all; }
+    .seat-tip { position:absolute; bottom:calc(100% + 4px); left:50%;
+      transform:translateX(-50%); background:#fff; border:1px solid var(--border);
+      border-radius:3px; padding:3px 6px; white-space:nowrap; font-size:10px;
+      color:var(--muted); pointer-events:none; opacity:0; transition:opacity .12s; z-index:50; }
+    .seat:hover .seat-tip { opacity:1; }
+
+    /* result panel */
+    .result-panel { border:1px solid var(--border); border-radius:var(--radius);
+      padding:16px; min-width:380px; max-width:100%; background:#fff; }
+    .result-panel h3 { font-size:14px; font-weight:700; margin-bottom:12px; }
+    .violations-box { margin-top:12px; padding:10px 12px; background:#fff0f0;
+      border:1px solid #f5b8b8; border-radius:var(--radius); }
+    .violations-box h4 { font-size:11px; font-weight:700; color:var(--danger);
+      text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+    .v-item { font-size:12px; color:var(--danger); padding:2px 0; }
+    .assign-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:12px; }
+    .assign-table th { font-size:10px; font-weight:700; letter-spacing:.06em;
+      text-transform:uppercase; color:var(--muted); padding:5px 8px;
+      text-align:left; border-bottom:1px solid var(--border); background:var(--surface); }
+    .assign-table td { padding:6px 8px; border-bottom:1px solid #eee; vertical-align:middle; }
+    .assign-table tr:last-child td { border-bottom:none; }
+    .assign-table tr:hover td { background:#fafafa; }
+    .seat-badge { display:inline-block; padding:1px 6px; border-radius:3px;
+      background:var(--surface); border:1px solid var(--border);
+      font-family:"Courier New",monospace; font-size:11px; }
+    .infeasible-box { background:#fff0f0; border:1px solid #f5b8b8;
+      border-radius:var(--radius); padding:20px; text-align:center; }
+    .infeasible-box h3 { font-size:16px; color:var(--danger); margin-bottom:6px; }
+    .infeasible-box p  { font-size:13px; color:var(--muted); }
+    .group-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; flex-shrink:0; }
+
+    /* RIGHT add forms */
+    .right { width:240px; flex-shrink:0; border-left:1px solid var(--border);
+      background:var(--surface); display:flex; flex-direction:column; overflow-y:auto; }
+    .r-hdr { padding:11px 14px; border-bottom:1px solid var(--border); }
+    .r-hdr h3 { font-size:13px; font-weight:700; }
+    .r-section { padding:12px 14px; border-bottom:1px solid var(--border); }
+    .check-row { display:flex; align-items:center; gap:6px; font-size:12px; margin:5px 0; }
+    .check-row input[type="checkbox"] { width:13px; height:13px; accent-color:var(--accent); }
+    .add-btn { width:100%; padding:7px; background:var(--accent); color:#fff;
+      border:none; border-radius:var(--radius); font-size:12px; font-weight:600;
+      cursor:pointer; font-family:inherit; margin-top:8px; }
+    .add-btn:hover { background:#1446b8; }
+
+    /* modal / roster */
+    .modal-overlay { position:fixed; inset:0; z-index:500; background:rgba(0,0,0,.45);
+      display:flex; align-items:center; justify-content:center;
+      opacity:0; pointer-events:none; transition:opacity .15s; }
+    .modal-overlay.open { opacity:1; pointer-events:all; }
+    .modal { background:#fff; border:1px solid var(--border); border-radius:var(--radius);
+      padding:22px; max-width:480px; width:92%; max-height:80vh;
+      display:flex; flex-direction:column; }
+    .modal h3 { font-size:16px; font-weight:700; margin-bottom:4px; }
+    .modal .sub { font-size:12px; color:var(--muted); margin-bottom:12px; }
+    .modal-footer { display:flex; align-items:center; justify-content:space-between;
+      padding-top:12px; border-top:1px solid var(--border); flex-shrink:0; margin-top:8px; }
+    .roster-list { flex:1; overflow-y:auto; display:flex; flex-direction:column;
+      gap:4px; min-height:80px; }
+    .r-item { display:flex; align-items:center; gap:8px; padding:7px 10px;
+      border-radius:var(--radius); border:1px solid var(--border); background:#fafafa;
+      cursor:pointer; font-size:12px; }
+    .r-item:hover { border-color:#999; }
+    .r-item.selected { border-color:var(--accent); background:#e8f0ff; }
+    .r-item.already { opacity:.4; cursor:not-allowed; pointer-events:none; }
+    .r-check { width:14px; height:14px; border-radius:3px; border:1.5px solid var(--border);
+      display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:9px; }
+    .r-item.selected .r-check { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .r-info { flex:1; }
+    .r-name { font-weight:600; }
+    .r-meta { font-size:11px; color:var(--muted); }
+
+    /* toasts */
+    .toast-stack { position:fixed; bottom:14px; right:14px; z-index:1000;
+      display:flex; flex-direction:column; gap:5px; }
+    .toast { padding:8px 12px; border-radius:var(--radius); font-size:12px; border:1px solid; }
+    .toast.success { background:#e8fff0; border-color:#a3e0b8; color:var(--green); }
+    .toast.error   { background:#fff0f0; border-color:#f5b8b8; color:var(--danger); }
+    .toast.info    { background:#e8f0ff; border-color:#b3d0ff; color:var(--accent); }
+
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ LEFT: config ══ -->
+<aside class="config">
+  <div class="panel-hdr">
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <h2>{{ 'Edit' if arrangement else 'New Arrangement' }}</h2>
+    <div class="dirty-dot" id="dirtyDot"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Details</div>
+    <div class="field">
+      <label class="field-label">Name</label>
+      <input type="text" id="arrName" placeholder="e.g. CS101 Midterm" oninput="markDirty()"
+             value="{{ arrangement.name if arrangement else '' }}" />
+    </div>
+    <div class="field">
+      <label class="field-label">Venue</label>
+      <select id="venueSelect" onchange="onVenueChange()">
+        <option value="">— Select a venue —</option>
+        {% for v in venues %}
+        <option value="{{ v.id }}"
+          {{ 'selected' if arrangement and arrangement.venue_id == v.id }}>
+          {{ v.name }} ({{ v.rows }}×{{ v.cols }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-row">
+      <span class="sec-label">Participants (<span id="partCount">0</span>)</span>
+      <button class="roster-btn" onclick="openRosterModal()">From Roster</button>
+    </div>
+    <div class="p-list" id="participantList"></div>
+  </div>
+
+  <div class="section" style="flex:1;">
+    <div class="sec-label">Constraints (<span id="constrCount">0</span>)</div>
+    <div class="c-list" id="constraintList"></div>
+  </div>
+
+  <div class="action-section">
+    <button class="btn btn-run" id="runBtn" onclick="runSolver()" disabled>▶ Run CSP Solver</button>
+    <button class="btn btn-primary" id="saveBtn" onclick="saveArrangement()">Save</button>
+    {% if arrangement %}
+    <a href="/api/arrangements/{{ arrangement.id }}/export" class="btn btn-secondary">Export JSON</a>
+    {% endif %}
+  </div>
+</aside>
+
+<!-- ══ CENTRE: canvas ══ -->
+<div class="canvas-area">
+  <div class="canvas-toolbar">
+    <span class="canvas-name" id="canvasName">
+      {{ arrangement.name if arrangement else 'New Arrangement' }}
+    </span>
+    <span class="status-pill unsolved" id="statusPill">● Unsolved</span>
+  </div>
+  <div class="grid-vp" id="gridVp">
+    <div class="no-venue-msg" id="noVenueMsg">← Select a venue to preview the grid.</div>
+    <div class="grid-wrap" id="gridWrap" style="display:none;"></div>
+    <div id="resultArea"></div>
+  </div>
+</div>
+
+<!-- ══ RIGHT: add forms ══ -->
+<aside class="right">
+  <div class="r-hdr"><h3>Add Participant</h3></div>
+  <div class="r-section">
+    <div class="field">
+      <label class="field-label">Name *</label>
+      <input type="text" id="pName" placeholder="Full name" />
+    </div>
+    <div class="field">
+      <label class="field-label">Group</label>
+      <input type="text" id="pGroup" placeholder="e.g. team-A" />
+    </div>
+    <div class="field">
+      <label class="field-label">Reserved Seat</label>
+      <input type="text" id="pSeat" placeholder="e.g. R1C3" />
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="pFront" />
+      <label for="pFront">Needs front row</label>
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="pAisle" />
+      <label for="pAisle">Needs aisle seat</label>
+    </div>
+    <button class="add-btn" onclick="addParticipant()">+ Add Participant</button>
+  </div>
+
+  <div class="r-hdr"><h3>Add Constraint</h3></div>
+  <div class="r-section">
+    <div class="field">
+      <label class="field-label">Type *</label>
+      <select id="cType" onchange="onConstraintTypeChange()">
+        <option value="MUST_SIT_TOGETHER">Must sit together</option>
+        <option value="MUST_NOT_SIT_TOGETHER">Must NOT sit together</option>
+        <option value="SAME_GROUP_TOGETHER">Group — sit together</option>
+        <option value="SAME_GROUP_APART">Group — sit apart</option>
+        <option value="FRONT_ROW">Front row</option>
+        <option value="NEAR_AISLE">Near aisle</option>
+        <option value="SPECIFIC_SEAT">Specific seat</option>
+      </select>
+    </div>
+    <div id="cPart1Wrap" class="field">
+      <label class="field-label">Participant 1 *</label>
+      <select id="cPart1"><option value="">— select —</option></select>
+    </div>
+    <div id="cPart2Wrap" class="field">
+      <label class="field-label">Participant 2 *</label>
+      <select id="cPart2"><option value="">— select —</option></select>
+    </div>
+    <div id="cGroupWrap" class="field" style="display:none;">
+      <label class="field-label">Group name *</label>
+      <input type="text" id="cGroup" placeholder="e.g. team-A" />
+    </div>
+    <div id="cSeatWrap" class="field" style="display:none;">
+      <label class="field-label">Seat ID *</label>
+      <input type="text" id="cSeat" placeholder="e.g. R1C3" />
+    </div>
+    <button class="add-btn" onclick="addConstraint()">+ Add Constraint</button>
+  </div>
+</aside>
+
+</div><!-- /.app -->
+
+<!-- Roster modal -->
+<div class="modal-overlay" id="rosterModal"
+     onclick="if(event.target===this)closeRosterModal()">
+  <div class="modal">
+    <h3>Import from Roster</h3>
+    <p class="sub">Select participants to add to this arrangement.</p>
+    <input type="text" id="rosterSearch" placeholder="Search name or group…"
+           style="margin-bottom:10px;flex-shrink:0;"
+           oninput="filterRoster()" />
+    <div class="roster-list" id="rosterList"></div>
+    <div class="modal-footer">
+      <span id="rosterSelCount" style="font-size:12px;color:var(--muted);">0 selected</span>
+      <div style="display:flex;gap:8px;">
+        <button onclick="closeRosterModal()"
+          style="padding:6px 14px;border-radius:var(--radius);border:1px solid var(--border);
+                 background:var(--surface);cursor:pointer;font-size:12px;font-family:inherit;">
+          Cancel
+        </button>
+        <button onclick="importSelected()"
+          style="padding:6px 14px;border-radius:var(--radius);border:none;
+                 background:var(--accent);color:#fff;cursor:pointer;
+                 font-size:12px;font-weight:600;font-family:inherit;">
+          Add Selected
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const ARR_ID = {{ arrangement.id if arrangement else 'null' }};
+let participants = [];
+let constraints  = [];
+let isDirty      = false;
+let currentVenueLayout = null;
+let currentResult      = null;
+
+{% if arrangement %}
+  participants = {{ arrangement.participants_json | safe }};
+  constraints  = {{ arrangement.constraints_json | safe }};
+  {% if arrangement.result_json %}
+    currentResult = {{ arrangement.result_json | safe }};
+  {% endif %}
+{% endif %}
+
+const COLORS = ['#1a56db','#1a7a3c','#7a1a7a','#cc6600','#cc0000','#006699','#556600'];
+function groupColor(g) {
+  if (!g) return '#aaa';
+  let h = 0;
+  for (let i = 0; i < g.length; i++) h = (h * 31 + g.charCodeAt(i)) % COLORS.length;
+  return COLORS[h];
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Dirty / nav ───────────────────────────────────────────────────────────────
+function markDirty() {
+  isDirty = true;
+  document.getElementById('dirtyDot').classList.add('show');
+  syncTitle();
+}
+function clearDirty() {
+  isDirty = false;
+  document.getElementById('dirtyDot').classList.remove('show');
+}
+function goBack() {
+  if (isDirty && !confirm('Unsaved changes. Leave anyway?')) return;
+  window.location.href = '/arrangements';
+}
+function syncTitle() {
+  document.getElementById('canvasName').textContent =
+    document.getElementById('arrName').value || 'New Arrangement';
+}
+window.addEventListener('beforeunload', e => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// ── Participants ──────────────────────────────────────────────────────────────
+function renderParticipants() {
+  const list = document.getElementById('participantList');
+  list.innerHTML = '';
+  participants.forEach((p, i) => {
+    const color = groupColor(p.group);
+    const tags = [
+      p.needs_front_row ? '<span class="ptag ptag-front">Front</span>' : '',
+      p.needs_aisle     ? '<span class="ptag ptag-aisle">Aisle</span>' : '',
+      p.reserved_seat   ? `<span class="ptag ptag-seat">${p.reserved_seat}</span>` : '',
+    ].join('');
+    const row = document.createElement('div');
+    row.className = 'p-row';
+    row.innerHTML = `
+      <div class="p-row-top">
+        <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div class="p-name">${esc(p.name)}</div>
+          ${p.group ? `<div class="p-group">${esc(p.group)}</div>` : ''}
+        </div>
+        <button class="del-btn" onclick="removeParticipant(${i})">×</button>
+      </div>
+      ${tags ? `<div class="p-tags">${tags}</div>` : ''}`;
+    list.appendChild(row);
+  });
+  document.getElementById('partCount').textContent = participants.length;
+  refreshConstraintSelects();
+  updateRunBtn();
+  renderGrid();
+}
+
+function addParticipant() {
+  const name = document.getElementById('pName').value.trim();
+  if (!name) { toast('Name is required.', 'error'); return; }
+  if (participants.find(p => p.name === name)) { toast('Already exists.', 'error'); return; }
+  participants.push({
+    name,
+    group:           document.getElementById('pGroup').value.trim() || null,
+    reserved_seat:   document.getElementById('pSeat').value.trim()  || null,
+    needs_front_row: document.getElementById('pFront').checked,
+    needs_aisle:     document.getElementById('pAisle').checked,
+  });
+  ['pName','pGroup','pSeat'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pFront').checked = false;
+  document.getElementById('pAisle').checked = false;
+  markDirty(); renderParticipants();
+}
+
+function removeParticipant(i) {
+  const name = participants[i].name;
+  participants.splice(i, 1);
+  constraints = constraints.filter(c => !c.participants || !c.participants.includes(name));
+  markDirty(); renderParticipants(); renderConstraints();
+}
+
+// ── Constraints ───────────────────────────────────────────────────────────────
+const CTYPE_LABELS = {
+  MUST_SIT_TOGETHER:'Must sit together', MUST_NOT_SIT_TOGETHER:'Must NOT sit together',
+  SAME_GROUP_TOGETHER:'Group — together', SAME_GROUP_APART:'Group — apart',
+  FRONT_ROW:'Front row', NEAR_AISLE:'Near aisle', SPECIFIC_SEAT:'Specific seat',
+};
+
+function renderConstraints() {
+  const list = document.getElementById('constraintList');
+  list.innerHTML = '';
+  constraints.forEach((c, i) => {
+    let desc = (c.participants||[]).join(', ');
+    if (c.group)   desc = (desc ? desc + ' · ' : '') + 'group: ' + c.group;
+    if (c.seat_id) desc = (desc ? desc + ' · ' : '') + 'seat: ' + c.seat_id;
+    const row = document.createElement('div');
+    row.className = 'c-row';
+    row.innerHTML = `
+      <div class="c-info">
+        <div class="c-type">${CTYPE_LABELS[c.type] || c.type}</div>
+        <div class="c-desc">${esc(desc)}</div>
+      </div>
+      <button class="del-btn" onclick="removeConstraint(${i})">×</button>`;
+    list.appendChild(row);
+  });
+  document.getElementById('constrCount').textContent = constraints.length;
+}
+
+function refreshConstraintSelects() {
+  ['cPart1','cPart2'].forEach(id => {
+    const sel = document.getElementById(id), prev = sel.value;
+    sel.innerHTML = '<option value="">— select —</option>';
+    participants.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.name; opt.textContent = p.name;
+      if (p.name === prev) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function onConstraintTypeChange() {
+  const t = document.getElementById('cType').value;
+  const binary = ['MUST_SIT_TOGETHER','MUST_NOT_SIT_TOGETHER'].includes(t);
+  const single = ['FRONT_ROW','NEAR_AISLE'].includes(t);
+  const group  = ['SAME_GROUP_TOGETHER','SAME_GROUP_APART'].includes(t);
+  const seat   = t === 'SPECIFIC_SEAT';
+  document.getElementById('cPart1Wrap').style.display = (binary||single||seat) ? '' : 'none';
+  document.getElementById('cPart2Wrap').style.display = binary ? '' : 'none';
+  document.getElementById('cGroupWrap').style.display = group  ? '' : 'none';
+  document.getElementById('cSeatWrap').style.display  = seat   ? '' : 'none';
+}
+onConstraintTypeChange();
+
+function addConstraint() {
+  const t = document.getElementById('cType').value;
+  const binary = ['MUST_SIT_TOGETHER','MUST_NOT_SIT_TOGETHER'].includes(t);
+  const single = ['FRONT_ROW','NEAR_AISLE'].includes(t);
+  const group  = ['SAME_GROUP_TOGETHER','SAME_GROUP_APART'].includes(t);
+  const seat   = t === 'SPECIFIC_SEAT';
+  const c = { type: t, participants: [], group: null, seat_id: null };
+
+  if (binary) {
+    const p1 = document.getElementById('cPart1').value;
+    const p2 = document.getElementById('cPart2').value;
+    if (!p1 || !p2) { toast('Select both participants.', 'error'); return; }
+    if (p1 === p2)  { toast('Must be different participants.', 'error'); return; }
+    c.participants = [p1, p2];
+  } else if (single) {
+    const p1 = document.getElementById('cPart1').value;
+    if (!p1) { toast('Select a participant.', 'error'); return; }
+    c.participants = [p1];
+  } else if (group) {
+    const g = document.getElementById('cGroup').value.trim();
+    if (!g) { toast('Enter a group name.', 'error'); return; }
+    c.group = g;
+  } else if (seat) {
+    const p1 = document.getElementById('cPart1').value;
+    const s  = document.getElementById('cSeat').value.trim();
+    if (!p1 || !s) { toast('Select participant and seat.', 'error'); return; }
+    c.participants = [p1]; c.seat_id = s;
+  }
+  constraints.push(c);
+  document.getElementById('cGroup').value = '';
+  document.getElementById('cSeat').value  = '';
+  markDirty(); renderConstraints();
+}
+
+function removeConstraint(i) {
+  constraints.splice(i, 1); markDirty(); renderConstraints();
+}
+
+// ── Venue / grid ──────────────────────────────────────────────────────────────
+async function onVenueChange() {
+  markDirty();
+  const vid = document.getElementById('venueSelect').value;
+  if (!vid) {
+    currentVenueLayout = null;
+    document.getElementById('noVenueMsg').style.display = '';
+    document.getElementById('gridWrap').style.display   = 'none';
+    updateRunBtn(); return;
+  }
+  const res  = await fetch(`/api/venues/${vid}`);
+  const data = await res.json();
+  currentVenueLayout = data.layout;
+  document.getElementById('noVenueMsg').style.display = 'none';
+  document.getElementById('gridWrap').style.display   = '';
+  renderGrid(); updateRunBtn();
+}
+
+const SEAT_SZ = 38, SEAT_GAP = 3;
+
+function renderGrid() {
+  const wrap = document.getElementById('gridWrap');
+  wrap.innerHTML = '';
+  if (!currentVenueLayout) return;
+
+  const layout = currentVenueLayout, rows = layout.rows, cols = layout.cols;
+  const assign = (currentResult && currentResult.assignment) ? currentResult.assignment : {};
+  const seatToName = Object.fromEntries(Object.entries(assign).map(([n,s]) => [s,n]));
+
+  // column headers
+  const hdrs = document.createElement('div');
+  hdrs.style.cssText = `display:flex;padding-left:${26+SEAT_GAP}px;gap:${SEAT_GAP}px;margin-bottom:3px;`;
+  for (let c = 0; c < cols; c++) {
+    const h = document.createElement('div');
+    h.style.cssText = `width:${SEAT_SZ}px;font-size:10px;color:var(--muted);
+      display:flex;align-items:center;justify-content:center;
+      font-family:"Courier New",monospace;`;
+    h.textContent = `C${c+1}`; hdrs.appendChild(h);
+  }
+  wrap.appendChild(hdrs);
+
+  for (let r = 0; r < rows; r++) {
+    const rowEl = document.createElement('div');
+    rowEl.style.cssText = `display:flex;align-items:center;gap:${SEAT_GAP}px;margin-bottom:${SEAT_GAP}px;`;
+    const lbl = document.createElement('div');
+    lbl.style.cssText = `width:22px;text-align:right;padding-right:4px;flex-shrink:0;
+      font-size:10px;color:var(--muted);font-family:"Courier New",monospace;`;
+    lbl.textContent = `R${r+1}`; rowEl.appendChild(lbl);
+
+    for (let c = 0; c < cols; c++) {
+      const sid   = `R${r+1}C${c+1}`;
+      const sData = layout.seats?.[sid] || {};
+      const el    = document.createElement('div');
+      el.className = 'seat';
+      el.style.cssText = `width:${SEAT_SZ}px;height:${SEAT_SZ}px;border-radius:3px;`;
+
+      const isBlocked = sData.is_blocked || sData.type === 'blocked';
+      const isFront   = sData.is_front   || sData.type === 'front';
+      const isAisle   = sData.is_aisle   || sData.type === 'aisle';
+
+      if (isBlocked) {
+        el.classList.add('blocked');
+      } else if (seatToName[sid]) {
+        const pname = seatToName[sid];
+        const p     = participants.find(x => x.name === pname);
+        const color = groupColor(p ? p.group : null);
+        el.classList.add('assigned');
+        el.style.background   = color + '22';
+        el.style.borderColor  = color;
+        const nm = document.createElement('div');
+        nm.className = 'seat-name';
+        nm.textContent = pname.length > 9 ? pname.slice(0,8)+'…' : pname;
+        el.appendChild(nm);
+        const tip = document.createElement('div');
+        tip.className = 'seat-tip'; tip.textContent = `${pname} — ${sid}`;
+        el.appendChild(tip);
+      } else {
+        el.classList.add('empty');
+        if (isFront) el.classList.add('front-row');
+        if (isAisle) el.classList.add('aisle-seat');
+        const tip = document.createElement('div');
+        tip.className = 'seat-tip';
+        tip.textContent = sid + (isFront?' · Front':'') + (isAisle?' · Aisle':'');
+        el.appendChild(tip);
+      }
+      rowEl.appendChild(el);
+    }
+    wrap.appendChild(rowEl);
+  }
+}
+
+// ── Result ────────────────────────────────────────────────────────────────────
+function renderResult() {
+  const area = document.getElementById('resultArea');
+  area.innerHTML = '';
+  const pill = document.getElementById('statusPill');
+
+  if (!currentResult) {
+    pill.className = 'status-pill unsolved'; pill.textContent = '● Unsolved'; return;
+  }
+  if (currentResult.error && !currentResult.assignment) {
+    pill.className = 'status-pill infeasible'; pill.textContent = '✗ Infeasible';
+    const box = document.createElement('div');
+    box.className = 'infeasible-box';
+    box.innerHTML = `<h3>No solution found</h3><p>${esc(currentResult.error)}</p>`;
+    area.appendChild(box); return;
+  }
+
+  pill.className = 'status-pill solved'; pill.textContent = '✓ Solved';
+  const assign     = currentResult.assignment || {};
+  const violations = currentResult.violations  || [];
+  const stats      = currentResult.stats       || {};
+
+  const panel = document.createElement('div');
+  panel.className = 'result-panel';
+
+  // stat row
+  const statRow = document.createElement('div');
+  statRow.style.cssText = 'display:flex;gap:16px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);';
+  [{val:stats.participants||0,lbl:'Seated'},{val:violations.length,lbl:'Violations'}].forEach(({val,lbl})=>{
+    const box=document.createElement('div');
+    box.innerHTML=`<div style="font-size:20px;font-weight:700;line-height:1;
+      color:${lbl==='Violations'&&val>0?'var(--danger)':'var(--green)'};">${val}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">${lbl}</div>`;
+    statRow.appendChild(box);
+  });
+  panel.appendChild(statRow);
+
+  // violations
+  if (violations.length) {
+    const vbox = document.createElement('div');
+    vbox.className = 'violations-box';
+    vbox.innerHTML = '<h4>Constraint Violations</h4>' +
+      violations.map(v=>`<div class="v-item">• ${esc(v)}</div>`).join('');
+    panel.appendChild(vbox);
+  }
+
+  // assignment table
+  const tbl = document.createElement('table');
+  tbl.className = 'assign-table';
+  tbl.innerHTML = '<thead><tr><th>Participant</th><th>Group</th><th>Seat</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  for (const [name, sid] of Object.entries(assign).sort(([a],[b])=>a.localeCompare(b))) {
+    const p     = participants.find(x => x.name === name);
+    const color = groupColor(p ? p.group : null);
+    const tr    = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="display:flex;align-items:center;gap:6px;">
+        <span class="group-dot" style="background:${color};"></span>${esc(name)}
+      </td>
+      <td style="color:var(--muted);font-size:11px;">${p&&p.group?esc(p.group):'—'}</td>
+      <td><span class="seat-badge">${sid}</span></td>`;
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
+  panel.appendChild(tbl);
+  area.appendChild(panel);
+}
+
+function updateRunBtn() {
+  const vid = document.getElementById('venueSelect').value;
+  document.getElementById('runBtn').disabled = !(vid && participants.length > 0);
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+async function saveArrangement() {
+  const name = document.getElementById('arrName').value.trim();
+  if (!name) { toast('Please enter a name.', 'error'); return; }
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const payload = { name, venue_id: document.getElementById('venueSelect').value || null,
+                    participants, constraints };
+  try {
+    const method = ARR_ID ? 'PUT' : 'POST';
+    const url    = ARR_ID ? `/api/arrangements/${ARR_ID}` : '/api/arrangements';
+    const res    = await fetch(url, { method,
+      headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+    const data = await res.json();
+    clearDirty(); toast('Saved.', 'success');
+    if (!ARR_ID) setTimeout(() => window.location.href = `/arrangements/${data.id}`, 700);
+  } catch(e) { toast(`Save failed: ${e.message}`, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Save'; }
+}
+
+// ── Run solver ────────────────────────────────────────────────────────────────
+async function runSolver() {
+  const btn  = document.getElementById('runBtn');
+  const pill = document.getElementById('statusPill');
+  btn.disabled = true; btn.textContent = '⟳ Running…';
+  pill.className = 'status-pill running'; pill.textContent = '⟳ Running…';
+
+  const name    = document.getElementById('arrName').value.trim() || 'Unnamed';
+  const payload = { name,
+    venue_id: document.getElementById('venueSelect').value || null,
+    participants, constraints };
+
+  try {
+    let arrId = ARR_ID;
+    if (!arrId) {
+      const sr = await fetch('/api/arrangements', { method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+      if (!sr.ok) throw new Error('Save failed');
+      arrId = (await sr.json()).id; clearDirty();
+    } else {
+      await fetch(`/api/arrangements/${arrId}`, { method:'PUT',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+      clearDirty();
+    }
+    const res  = await fetch(`/api/arrangements/${arrId}/solve`, { method:'POST' });
+    const data = await res.json();
+    currentResult = data.result;
+    renderGrid(); renderResult();
+    toast(data.status === 'solved' ? 'Solution found.' : 'No solution found.',
+          data.status === 'solved' ? 'success' : 'error');
+    if (!ARR_ID) setTimeout(() => window.location.href = `/arrangements/${arrId}`, 300);
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+    pill.className = 'status-pill unsolved'; pill.textContent = '● Unsolved';
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ Run CSP Solver'; updateRunBtn();
+  }
+}
+
+// ── Roster modal ──────────────────────────────────────────────────────────────
+let rosterData     = [];
+let rosterSelected = new Set();
+
+async function openRosterModal() {
+  try { const r = await fetch('/api/participants'); rosterData = await r.json(); }
+  catch(e) { toast('Could not load roster.', 'error'); return; }
+  rosterSelected.clear();
+  document.getElementById('rosterSearch').value = '';
+  filterRoster();
+  document.getElementById('rosterModal').classList.add('open');
+}
+function closeRosterModal() {
+  document.getElementById('rosterModal').classList.remove('open');
+}
+function filterRoster() {
+  const q = document.getElementById('rosterSearch').value.toLowerCase();
+  const alreadyNames = new Set(participants.map(p => p.name));
+  const list = rosterData.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.group_name||'').toLowerCase().includes(q));
+  const container = document.getElementById('rosterList');
+  if (!list.length) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;color:var(--muted);">No participants found.</div>';
+    return;
+  }
+  container.innerHTML = list.map(p => {
+    const isAdded    = alreadyNames.has(p.name);
+    const isSelected = rosterSelected.has(p.id);
+    const meta = [p.group_name, p.needs_front_row?'Front':null, p.needs_aisle?'Aisle':null]
+      .filter(Boolean).join(' · ') || 'No special requirements';
+    return `<div class="r-item ${isSelected?'selected':''} ${isAdded?'already':''}"
+                 onclick="toggleRosterItem(${p.id})">
+      <div class="r-check">${isSelected?'✓':''}</div>
+      <div style="width:8px;height:8px;border-radius:50%;background:${groupColor(p.group_name)};flex-shrink:0;"></div>
+      <div class="r-info">
+        <div class="r-name">${esc(p.name)}${isAdded?' <span style="font-size:10px;color:var(--muted);font-weight:400;">(added)</span>':''}</div>
+        <div class="r-meta">${esc(meta)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('rosterSelCount').textContent =
+    rosterSelected.size + ' selected';
+}
+function toggleRosterItem(id) {
+  if (rosterSelected.has(id)) rosterSelected.delete(id); else rosterSelected.add(id);
+  filterRoster();
+}
+function importSelected() {
+  if (!rosterSelected.size) { toast('Select at least one.', 'error'); return; }
+  const alreadyNames = new Set(participants.map(p => p.name));
+  let added = 0;
+  for (const id of rosterSelected) {
+    const rp = rosterData.find(p => p.id === id);
+    if (!rp || alreadyNames.has(rp.name)) continue;
+    participants.push({ name:rp.name, group:rp.group_name||null,
+      reserved_seat:null, needs_front_row:!!rp.needs_front_row, needs_aisle:!!rp.needs_aisle });
+    added++;
+  }
+  closeRosterModal(); markDirty(); renderParticipants();
+  toast(`${added} participant${added!==1?'s':''} added.`, 'success');
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.metaKey||e.ctrlKey) && e.key === 's')     { e.preventDefault(); saveArrangement(); }
+  if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); runSolver(); }
+  if (e.key === 'Escape') closeRosterModal();
+});
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`; el.textContent = msg;
+  document.getElementById('toastStack').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async function init() {
+  renderParticipants(); renderConstraints();
+  const vid = document.getElementById('venueSelect').value;
+  if (vid) {
+    const res  = await fetch(`/api/venues/${vid}`);
+    const data = await res.json();
+    currentVenueLayout = data.layout;
+    document.getElementById('noVenueMsg').style.display = 'none';
+    document.getElementById('gridWrap').style.display   = '';
+  }
+  renderGrid(); renderResult(); updateRunBtn(); syncTitle();
+})();
+</script>
+</body>
+</html>

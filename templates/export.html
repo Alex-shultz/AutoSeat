@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Smart Seating Layout Design and Planner — Export</title>
+  <link rel="stylesheet" href="/static/base.css" />
+  <style>
+    .export-section { margin-bottom:32px; }
+    .export-section h2 { font-size:14px; font-weight:700; margin-bottom:12px;
+      padding-bottom:8px; border-bottom:1px solid var(--border); }
+    .export-row { display:flex; align-items:center; gap:12px; padding:10px 12px;
+      border:1px solid var(--border); border-radius:var(--radius);
+      background:#fff; margin-bottom:6px; }
+    .export-row:hover { border-color:#999; }
+    .export-row-info { flex:1; }
+    .export-row-name { font-size:13px; font-weight:600; margin-bottom:2px;
+      display:flex; align-items:center; gap:8px; }
+    .export-row-meta { font-size:11px; color:var(--muted); }
+    .fmt-btns { display:flex; gap:5px; flex-shrink:0; }
+    .fmt-btn { display:inline-flex; align-items:center; gap:4px;
+      padding:5px 10px; border-radius:var(--radius); font-size:11px; font-weight:700;
+      cursor:pointer; text-decoration:none; border:1px solid var(--border);
+      background:var(--surface); color:var(--text); transition:background .12s; }
+    .fmt-btn:hover { background:#e8e8e8; text-decoration:none; }
+    .fmt-btn.json { border-color:#b3d0ff; color:var(--accent); background:#e8f0ff; }
+    .fmt-btn.json:hover { background:#d0e4ff; }
+    .fmt-btn.csv  { border-color:#a3e0b8; color:var(--green); background:#e8fff0; }
+    .fmt-btn.csv:hover  { background:#d0f0e0; }
+    .fmt-btn.png  { border-color:#c0d0f0; color:#334d99; background:#eef2ff; }
+    .fmt-btn.png:hover  { background:#dde6ff; }
+    .fmt-btn.jpg  { border-color:#d0c0f0; color:#5533aa; background:#f2eeff; }
+    .fmt-btn.jpg:hover  { background:#e8ddff; }
+  </style>
+</head>
+<body>
+{% from '_sidebar.html' import sidebar %}
+<div class="shell">
+  {{ sidebar(user, 'export') }}
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Export Centre</h1>
+        <p>Download data as JSON, CSV, or image. JSON includes full metadata; CSV is spreadsheet-friendly.</p>
+      </div>
+    </div>
+
+    <!-- Participants -->
+    <div class="export-section">
+      <h2>Participant Roster
+        <span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">
+          {{ participant_count }} participant{{ 's' if participant_count != 1 }}
+        </span>
+      </h2>
+      {% if participant_count > 0 %}
+      <div class="export-row">
+        <div class="export-row-info">
+          <div class="export-row-name">All Participants</div>
+          <div class="export-row-meta">name, group, requirements, notes</div>
+        </div>
+        <div class="fmt-btns">
+          <a href="/api/export/participants.json" class="fmt-btn json"
+             onclick="notifyDownload('JSON')">JSON</a>
+          <a href="/api/export/participants.csv" class="fmt-btn csv"
+             onclick="notifyDownload('CSV')">CSV</a>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state" style="padding:24px;">
+        No participants yet. <a href="/participants">Add participants →</a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Venues -->
+    <div class="export-section">
+      <h2>Venue Layouts
+        <span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">
+          {{ venues | length }} venue{{ 's' if venues | length != 1 }}
+        </span>
+      </h2>
+      {% if venues %}
+        {% for v in venues %}
+        <div class="export-row">
+          <div class="export-row-info">
+            <div class="export-row-name">{{ v.name }}</div>
+            <div class="export-row-meta">{{ v.rows }}×{{ v.cols }} · {{ v.venue_type }} · updated {{ v.updated_at[:10] }}</div>
+          </div>
+          <div class="fmt-btns">
+            <a href="/api/venues/{{ v.id }}/export" class="fmt-btn json"
+               onclick="notifyDownload('JSON')">JSON</a>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+      <div class="empty-state" style="padding:24px;">
+        No venues yet. <a href="/venues/new">Create a venue →</a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Arrangements -->
+    <div class="export-section">
+      <h2>Seating Arrangements
+        <span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">
+          {{ arrangements | length }} arrangement{{ 's' if arrangements | length != 1 }}
+        </span>
+      </h2>
+      {% if arrangements %}
+        {% for a in arrangements %}
+        {% set parts_count = (a.participants_json | from_json) | length %}
+        <div class="export-row">
+          <div class="export-row-info">
+            <div class="export-row-name">
+              {{ a.name }}
+              <span class="status-badge status-{{ a.status }}">{{ a.status }}</span>
+            </div>
+            <div class="export-row-meta">
+              {% if a.venue_name %}{{ a.venue_name }} · {% endif %}
+              {{ parts_count }} participant{{ 's' if parts_count != 1 }} · updated {{ a.updated_at[:10] }}
+            </div>
+          </div>
+          <div class="fmt-btns">
+            <a href="/api/arrangements/{{ a.id }}/export" class="fmt-btn json"
+               onclick="notifyDownload('JSON')">JSON</a>
+            {% if a.status == 'solved' %}
+            <a href="/api/export/arrangements/{{ a.id }}/assignment.csv" class="fmt-btn csv"
+               onclick="notifyDownload('CSV')">CSV</a>
+            <a href="/api/export/arrangements/{{ a.id }}/image.png" class="fmt-btn png"
+               onclick="notifyDownload('PNG')">PNG</a>
+            <a href="/api/export/arrangements/{{ a.id }}/image.jpeg" class="fmt-btn jpg"
+               onclick="notifyDownload('JPEG')">JPEG</a>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+      <div class="empty-state" style="padding:24px;">
+        No arrangements yet. <a href="/arrangements/new">Create an arrangement →</a>
+      </div>
+      {% endif %}
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+<script>
+  function notifyDownload(fmt) {
+    const el = document.createElement('div');
+    el.className = 'toast success';
+    el.textContent = `${fmt} download started`;
+    document.getElementById('toastStack').appendChild(el);
+    setTimeout(() => el.remove(), 2500);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Smart Seating Layout Design and Planner — {{ 'Edit: ' + venue.name if venue else 'New Venue' }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --border:#d0d0d0; --accent:#1a56db; --danger:#cc0000;
+            --surface:#f5f5f5; --muted:#555; --radius:4px; }
+    html,body { height:100%; font-family:system-ui,Arial,sans-serif;
+      font-size:13px; background:#fff; color:#111; overflow:hidden; }
+    .app { display:flex; height:100vh; }
+
+    /* left panel */
+    .settings { width:230px; flex-shrink:0; border-right:1px solid var(--border);
+      background:var(--surface); display:flex; flex-direction:column; overflow-y:auto; }
+    .panel-hdr { padding:12px 14px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; gap:8px; }
+    .back-btn { background:none; border:1px solid var(--border); border-radius:var(--radius);
+      padding:3px 8px; cursor:pointer; font-size:12px; }
+    .back-btn:hover { background:#e8e8e8; }
+    .panel-hdr h2 { font-size:14px; font-weight:700; flex:1; }
+    .unsaved { width:8px; height:8px; background:var(--accent); border-radius:50%;
+      display:none; }
+    .unsaved.show { display:block; }
+    .section { padding:12px 14px; border-bottom:1px solid var(--border); }
+    .sec-label { font-size:10px; font-weight:700; letter-spacing:.08em;
+      text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+    .field { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+    .field:last-child { margin-bottom:0; }
+    .field label { font-size:11px; font-weight:600; color:var(--muted); }
+    input,textarea,select { border:1px solid var(--border); border-radius:var(--radius);
+      padding:6px 8px; font-size:12px; font-family:inherit; outline:none; width:100%;
+      background:#fff; }
+    input:focus,select:focus,textarea:focus { border-color:var(--accent); }
+    textarea { resize:vertical; min-height:48px; }
+    .stepper { display:flex; gap:6px; align-items:center; }
+    .stepper input { flex:1; text-align:center; }
+    .step-btn { background:var(--surface); border:1px solid var(--border);
+      width:28px; height:28px; border-radius:var(--radius); cursor:pointer;
+      font-size:16px; display:flex; align-items:center; justify-content:center;
+      flex-shrink:0; }
+    .step-btn:hover { background:#e8e8e8; }
+
+    /* tools */
+    .tool-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+    .tool-btn { padding:6px 4px; border:1px solid var(--border); border-radius:var(--radius);
+      background:#fff; cursor:pointer; font-size:11px; text-align:center;
+      display:flex; flex-direction:column; align-items:center; gap:4px;
+      font-family:inherit; }
+    .tool-btn:hover { border-color:#999; }
+    .tool-btn.active { border-color:var(--accent); background:#e8f0ff;
+      color:var(--accent); font-weight:600; }
+    .swatch { width:22px; height:14px; border-radius:2px; border:1px solid var(--border); }
+
+    /* save area */
+    .save-area { padding:12px 14px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:6px; }
+    .btn { display:flex; align-items:center; justify-content:center; gap:5px;
+      padding:8px; border-radius:var(--radius); font-family:inherit;
+      font-size:12px; font-weight:600; cursor:pointer; border:1px solid transparent; text-decoration:none; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover { background:#1446b8; }
+    .btn-secondary { background:var(--surface); color:#111; border-color:var(--border); }
+    .btn-secondary:hover { background:#e8e8e8; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+
+    /* canvas */
+    .canvas-area { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .canvas-toolbar { height:44px; border-bottom:1px solid var(--border);
+      background:var(--surface); display:flex; align-items:center;
+      padding:0 16px; gap:12px; flex-shrink:0; }
+    .canvas-name { font-size:14px; font-weight:700; flex:1; }
+    .dim-label { font-size:11px; color:var(--muted); font-family:"Courier New",monospace; }
+    .zoom-row { display:flex; align-items:center; gap:4px; }
+    .zoom-btn { background:var(--surface); border:1px solid var(--border);
+      width:24px; height:24px; cursor:pointer; border-radius:var(--radius);
+      font-size:14px; display:flex; align-items:center; justify-content:center; }
+    .zoom-btn:hover { background:#e8e8e8; }
+    .zoom-lbl { font-size:11px; color:var(--muted); min-width:36px; text-align:center;
+      font-family:"Courier New",monospace; }
+    .divider { width:1px; height:20px; background:var(--border); }
+    .reset-btn { background:none; border:1px solid var(--border); border-radius:var(--radius);
+      padding:4px 10px; cursor:pointer; font-size:11px; font-family:inherit; }
+    .reset-btn:hover { border-color:var(--danger); color:var(--danger); }
+    .grid-vp { flex:1; overflow:auto; padding:24px;
+      display:flex; align-items:flex-start; justify-content:flex-start; }
+    .grid-wrap { display:inline-flex; flex-direction:column; user-select:none; }
+    .col-hdrs { display:flex; }
+    .col-hdr { font-size:10px; color:var(--muted); display:flex;
+      align-items:center; justify-content:center;
+      font-family:"Courier New",monospace; }
+    .grid-row { display:flex; align-items:center; }
+    .row-lbl { font-size:10px; color:var(--muted); width:28px; text-align:right;
+      padding-right:6px; flex-shrink:0; font-family:"Courier New",monospace; }
+    .seat { border:1px solid; cursor:pointer; position:relative;
+      display:flex; align-items:center; justify-content:center;
+      font-size:8px; overflow:hidden; transition:filter .08s; }
+    .seat:hover { filter:brightness(.88); z-index:10; }
+    .seat[data-type="normal"]  { background:#e8f0ff; border-color:#b3d0ff; }
+    .seat[data-type="blocked"] { background:#eee;    border-color:#ccc; opacity:.4; cursor:not-allowed; }
+    .seat[data-type="blocked"]::after { content:'✕'; color:#999; font-size:10px; position:absolute; }
+    .seat[data-type="aisle"]   { background:#e8fff0; border-color:#a3e0b8; }
+    .seat[data-type="front"]   { background:#fff8e0; border-color:#e0c860; }
+    .seat[data-type="exit"]    { background:#fff0f0; border-color:#f5b8b8; }
+    .seat.has-label { font-size:7px; color:#333; }
+    .seat-tip { position:absolute; bottom:calc(100% + 4px); left:50%;
+      transform:translateX(-50%); background:#fff; border:1px solid var(--border);
+      border-radius:3px; padding:3px 6px; white-space:nowrap; font-size:10px;
+      color:var(--muted); pointer-events:none; opacity:0; transition:opacity .12s; z-index:50; }
+    .seat:hover .seat-tip { opacity:1; }
+
+    /* inspector */
+    .inspector { width:200px; flex-shrink:0; border-left:1px solid var(--border);
+      background:var(--surface); display:flex; flex-direction:column; overflow-y:auto; }
+    .insp-hdr { padding:12px 14px; border-bottom:1px solid var(--border); }
+    .insp-hdr h3 { font-size:13px; font-weight:700; }
+    .insp-hdr p { font-size:11px; color:var(--muted); }
+    .insp-section { padding:10px 14px; border-bottom:1px solid var(--border); }
+    .no-sel { padding:24px 14px; text-align:center; font-size:12px; color:var(--muted); }
+    .sel-id { font-family:"Courier New",monospace; font-size:13px;
+      font-weight:700; color:var(--accent); margin-bottom:8px; }
+    .type-pills { display:flex; flex-wrap:wrap; gap:4px; }
+    .type-pill { padding:3px 8px; border-radius:var(--radius); font-size:11px;
+      font-weight:600; cursor:pointer; border:1px solid var(--border);
+      background:#fff; }
+    .type-pill:hover { border-color:#999; }
+    .type-pill.active { border-color:var(--accent); background:#e8f0ff;
+      color:var(--accent); }
+    .pos-info { font-size:12px; color:var(--muted); line-height:1.8;
+      font-family:"Courier New",monospace; }
+
+    /* toast */
+    .toast-stack { position:fixed; bottom:14px; right:14px; z-index:1000;
+      display:flex; flex-direction:column; gap:5px; }
+    .toast { padding:8px 12px; border-radius:var(--radius); font-size:12px;
+      border:1px solid; }
+    .toast.success { background:#e8fff0; border-color:#a3e0b8; color:#1a7a3c; }
+    .toast.error   { background:#fff0f0; border-color:#f5b8b8; color:var(--danger); }
+    .toast.info    { background:#e8f0ff; border-color:#b3d0ff; color:var(--accent); }
+  </style>
+</head>
+<body>
+<div class="app">
+
+<!-- LEFT: settings -->
+<aside class="settings">
+  <div class="panel-hdr">
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <h2>{{ 'Edit Venue' if venue else 'New Venue' }}</h2>
+    <div class="unsaved" id="unsavedDot"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Details</div>
+    <div class="field">
+      <label>Name</label>
+      <input type="text" id="venueName" placeholder="e.g. Room 101"
+             value="{{ venue.name if venue else '' }}" oninput="markDirty()" />
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <textarea id="venueDesc" placeholder="Optional…" oninput="markDirty()">{{ venue.description if venue else '' }}</textarea>
+    </div>
+    <div class="field">
+      <label>Type</label>
+      <select id="venueType" onchange="markDirty()">
+        {% set vtype = venue.venue_type if venue else 'classroom' %}
+        <option value="classroom"  {{ 'selected' if vtype=='classroom' }}>Classroom</option>
+        <option value="auditorium" {{ 'selected' if vtype=='auditorium' }}>Auditorium</option>
+        <option value="exam_hall"  {{ 'selected' if vtype=='exam_hall' }}>Exam Hall</option>
+        <option value="conference" {{ 'selected' if vtype=='conference' }}>Conference Room</option>
+        <option value="theater"    {{ 'selected' if vtype=='theater' }}>Theater</option>
+        <option value="event_hall" {{ 'selected' if vtype=='event_hall' }}>Event Hall</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Grid Size</div>
+    <div class="field">
+      <label>Rows</label>
+      <div class="stepper">
+        <button class="step-btn" onclick="adjustGrid('rows',-1)">−</button>
+        <input type="number" id="gridRows" min="1" max="30"
+               value="{{ venue.rows if venue else 5 }}" oninput="onDimChange()" />
+        <button class="step-btn" onclick="adjustGrid('rows',1)">+</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Columns</label>
+      <div class="stepper">
+        <button class="step-btn" onclick="adjustGrid('cols',-1)">−</button>
+        <input type="number" id="gridCols" min="1" max="30"
+               value="{{ venue.cols if venue else 6 }}" oninput="onDimChange()" />
+        <button class="step-btn" onclick="adjustGrid('cols',1)">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Paint Tool</div>
+    <div class="tool-grid">
+      <button class="tool-btn active" id="tool-normal"  onclick="setTool('normal')">
+        <div class="swatch" style="background:#e8f0ff;border-color:#b3d0ff"></div>Normal
+      </button>
+      <button class="tool-btn" id="tool-blocked" onclick="setTool('blocked')">
+        <div class="swatch" style="background:#eee;border-color:#ccc"></div>Blocked
+      </button>
+      <button class="tool-btn" id="tool-aisle"   onclick="setTool('aisle')">
+        <div class="swatch" style="background:#e8fff0;border-color:#a3e0b8"></div>Aisle
+      </button>
+      <button class="tool-btn" id="tool-front"   onclick="setTool('front')">
+        <div class="swatch" style="background:#fff8e0;border-color:#e0c860"></div>Front Row
+      </button>
+      <button class="tool-btn" id="tool-exit"    onclick="setTool('exit')">
+        <div class="swatch" style="background:#fff0f0;border-color:#f5b8b8"></div>Exit Zone
+      </button>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;">
+      Click or drag to paint. Shift+click to select a seat.
+    </p>
+  </div>
+
+  <div style="flex:1"></div>
+
+  <div class="save-area">
+    <button class="btn btn-primary" id="saveBtn" onclick="saveVenue()">Save Venue</button>
+    {% if venue %}
+    <a href="/api/venues/{{ venue.id }}/export" class="btn btn-secondary">Export JSON</a>
+    {% endif %}
+  </div>
+</aside>
+
+<!-- CENTRE: canvas -->
+<div class="canvas-area">
+  <div class="canvas-toolbar">
+    <span class="canvas-name" id="canvasName">{{ venue.name if venue else 'Untitled Venue' }}</span>
+    <span class="dim-label" id="dimLabel">
+      {{ venue.rows if venue else 5 }}×{{ venue.cols if venue else 6 }}
+    </span>
+    <div class="divider"></div>
+    <div class="zoom-row">
+      <button class="zoom-btn" onclick="zoom(-1)">−</button>
+      <span class="zoom-lbl" id="zoomLbl">100%</span>
+      <button class="zoom-btn" onclick="zoom(1)">+</button>
+    </div>
+    <div class="divider"></div>
+    <button class="reset-btn" onclick="confirmClear()">Reset grid</button>
+  </div>
+  <div class="grid-vp" id="gridVp">
+    <div class="grid-wrap" id="gridWrap">
+      <div class="col-hdrs" id="colHdrs"></div>
+      <div id="seatGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- RIGHT: inspector -->
+<aside class="inspector">
+  <div class="insp-hdr">
+    <h3>Inspector</h3>
+    <p>Shift+click a seat</p>
+  </div>
+  <div id="noSelMsg"><div class="no-sel">No seat selected.</div></div>
+  <div id="selPanel" style="display:none;">
+    <div class="insp-section">
+      <div class="sel-id" id="selId">R1C1</div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px;">Type</div>
+      <div class="type-pills">
+        <button class="type-pill" data-t="normal"  onclick="setSelectedType('normal')">Normal</button>
+        <button class="type-pill" data-t="blocked" onclick="setSelectedType('blocked')">Blocked</button>
+        <button class="type-pill" data-t="aisle"   onclick="setSelectedType('aisle')">Aisle</button>
+        <button class="type-pill" data-t="front"   onclick="setSelectedType('front')">Front</button>
+        <button class="type-pill" data-t="exit"    onclick="setSelectedType('exit')">Exit</button>
+      </div>
+    </div>
+    <div class="insp-section">
+      <div class="field">
+        <label style="font-size:11px;">Custom Label</label>
+        <input type="text" id="seatLabel" placeholder="e.g. A1" maxlength="8"
+               oninput="updateSeatLabel(this.value)" />
+      </div>
+    </div>
+    <div class="insp-section">
+      <div class="sec-label">Position</div>
+      <div class="pos-info" id="posInfo">—</div>
+    </div>
+  </div>
+</aside>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+const VENUE_ID = {{ venue.id if venue else 'null' }};
+let seats = {};
+let rows, cols;
+
+{% if venue %}
+(function(){
+  const saved = {{ venue.layout_json | safe }};
+  rows = saved.rows; cols = saved.cols;
+  seats = saved.seats || {};
+  document.getElementById('gridRows').value = rows;
+  document.getElementById('gridCols').value = cols;
+})();
+{% else %}
+rows = 5; cols = 6;
+{% endif %}
+
+let currentTool = 'normal';
+let isPainting  = false;
+let isDirty     = false;
+let selectedId  = null;
+let zoomLevel   = 100;
+const BASE = 36, GAP = 3;
+
+function buildGrid(keepExisting=true) {
+  rows = Math.max(1,Math.min(30,parseInt(document.getElementById('gridRows').value)||5));
+  cols = Math.max(1,Math.min(30,parseInt(document.getElementById('gridCols').value)||6));
+  const newSeats = {};
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) {
+    const sid = `R${r+1}C${c+1}`;
+    if(keepExisting && seats[sid]) {
+      newSeats[sid] = {...seats[sid], row:r, col:c, id:sid,
+        is_front:(r===0), is_aisle:(c===0||c===cols-1)};
+    } else {
+      const is_front=(r===0), is_aisle=(c===0||c===cols-1);
+      newSeats[sid] = {id:sid,row:r,col:c,
+        type: is_front?'front':(is_aisle?'aisle':'normal'),
+        label:'',is_blocked:false,is_aisle,is_front};
+    }
+  }
+  seats = newSeats;
+  renderGrid();
+}
+
+function renderGrid() {
+  const sz   = Math.round(BASE*zoomLevel/100);
+  const gap  = Math.max(2,Math.round(GAP*zoomLevel/100));
+  const fs   = Math.max(6,Math.round(8*zoomLevel/100));
+
+  const colHdrs = document.getElementById('colHdrs');
+  colHdrs.innerHTML='';
+  colHdrs.style.cssText=`padding-left:${28+gap}px;gap:${gap}px;margin-bottom:3px;`;
+  for(let c=0;c<cols;c++){
+    const h=document.createElement('div'); h.className='col-hdr';
+    h.style.cssText=`width:${sz}px;font-size:${fs}px;`;
+    h.textContent=`C${c+1}`; colHdrs.appendChild(h);
+  }
+
+  const grid=document.getElementById('seatGrid');
+  grid.innerHTML='';
+  grid.style.cssText=`display:flex;flex-direction:column;gap:${gap}px;`;
+
+  for(let r=0;r<rows;r++){
+    const rowEl=document.createElement('div');
+    rowEl.style.cssText=`display:flex;align-items:center;gap:${gap}px;`;
+    const lbl=document.createElement('div'); lbl.className='row-lbl';
+    lbl.style.cssText=`font-size:${fs}px;width:24px;`;
+    lbl.textContent=`R${r+1}`; rowEl.appendChild(lbl);
+
+    for(let c=0;c<cols;c++){
+      const sid=`R${r+1}C${c+1}`, seat=seats[sid];
+      const el=document.createElement('div'); el.className='seat';
+      el.dataset.id=sid; el.dataset.type=seat.type;
+      el.style.cssText=`width:${sz}px;height:${sz}px;border-radius:3px;font-size:${fs}px;`;
+      if(seat.label){el.classList.add('has-label');el.textContent=seat.label;}
+      if(sid===selectedId) el.style.outline='2px solid var(--accent)';
+      const tip=document.createElement('div'); tip.className='seat-tip';
+      tip.textContent=sid+(seat.label?` · ${seat.label}`:''); el.appendChild(tip);
+      el.addEventListener('mousedown',e=>{e.preventDefault();onSeatDown(sid,e);});
+      el.addEventListener('mouseenter',()=>{if(isPainting)paintSeat(sid);});
+      el.addEventListener('click',e=>{if(e.shiftKey)selectSeat(sid);});
+      rowEl.appendChild(el);
+    }
+    grid.appendChild(rowEl);
+  }
+  document.getElementById('dimLabel').textContent=`${rows}×${cols}`;
+  document.getElementById('canvasName').textContent=
+    document.getElementById('venueName').value||'Untitled Venue';
+  document.getElementById('gridVp').addEventListener('mouseup',()=>isPainting=false);
+}
+
+function getSeatEl(sid){ return document.querySelector(`.seat[data-id="${sid}"]`); }
+
+function onSeatDown(sid,e){
+  if(e.shiftKey){selectSeat(sid);return;}
+  isPainting=true; paintSeat(sid);
+}
+function paintSeat(sid){
+  const s=seats[sid]; if(!s) return;
+  s.type=currentTool; s.is_blocked=(currentTool==='blocked');
+  const el=getSeatEl(sid); if(el) el.dataset.type=currentTool;
+  markDirty(); if(sid===selectedId) refreshInspector();
+}
+function selectSeat(sid){
+  if(selectedId){const p=getSeatEl(selectedId);if(p)p.style.outline='';}
+  selectedId=sid;
+  const el=getSeatEl(sid); if(el) el.style.outline='2px solid var(--accent)';
+  document.getElementById('noSelMsg').style.display='none';
+  document.getElementById('selPanel').style.display='block';
+  refreshInspector();
+}
+function refreshInspector(){
+  if(!selectedId) return;
+  const s=seats[selectedId]; if(!s) return;
+  document.getElementById('selId').textContent=selectedId;
+  document.getElementById('seatLabel').value=s.label||'';
+  document.getElementById('posInfo').textContent=`Row ${s.row+1}, Col ${s.col+1}`;
+  document.querySelectorAll('.type-pill').forEach(p=>
+    p.classList.toggle('active',p.dataset.t===s.type));
+}
+function setSelectedType(t){
+  if(!selectedId) return;
+  seats[selectedId].type=t; seats[selectedId].is_blocked=(t==='blocked');
+  const el=getSeatEl(selectedId); if(el) el.dataset.type=t;
+  refreshInspector(); markDirty();
+}
+function updateSeatLabel(v){
+  if(!selectedId) return;
+  seats[selectedId].label=v;
+  const el=getSeatEl(selectedId);
+  if(el){
+    if(v){el.classList.add('has-label');el.childNodes[0].textContent=v;}
+    else{el.classList.remove('has-label');el.childNodes[0].textContent='';}
+    const tip=el.querySelector('.seat-tip');
+    if(tip) tip.textContent=selectedId+(v?` · ${v}`:'');
+  }
+  markDirty();
+}
+function setTool(t){
+  currentTool=t;
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById(`tool-${t}`); if(btn) btn.classList.add('active');
+}
+
+let dimTimer=null;
+function onDimChange(){
+  clearTimeout(dimTimer); dimTimer=setTimeout(()=>buildGrid(true),400); markDirty();
+}
+function adjustGrid(dim,delta){
+  const id=dim==='rows'?'gridRows':'gridCols';
+  const inp=document.getElementById(id);
+  inp.value=Math.max(1,Math.min(30,(parseInt(inp.value)||1)+delta));
+  buildGrid(true); markDirty();
+}
+function zoom(dir){
+  const steps=[50,75,100,125,150,175,200];
+  const idx=steps.indexOf(zoomLevel);
+  zoomLevel=steps[Math.max(0,Math.min(steps.length-1,idx+dir))];
+  document.getElementById('zoomLbl').textContent=zoomLevel+'%';
+  renderGrid();
+}
+function markDirty(){
+  isDirty=true; document.getElementById('unsavedDot').classList.add('show');
+}
+async function saveVenue(){
+  const name=document.getElementById('venueName').value.trim();
+  if(!name){toast('Enter a venue name.','error');return;}
+  const btn=document.getElementById('saveBtn');
+  btn.disabled=true; btn.textContent='Saving…';
+  const payload={name,
+    description:document.getElementById('venueDesc').value.trim(),
+    venue_type:document.getElementById('venueType').value,
+    rows,cols,seats};
+  try{
+    const method=VENUE_ID?'PUT':'POST';
+    const url=VENUE_ID?`/api/venues/${VENUE_ID}`:'/api/venues';
+    const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!res.ok) throw new Error((await res.json()).error||`HTTP ${res.status}`);
+    const data=await res.json();
+    isDirty=false; document.getElementById('unsavedDot').classList.remove('show');
+    toast('Venue saved!','success');
+    if(!VENUE_ID) setTimeout(()=>window.location.href=`/venues/${data.id}/edit`,700);
+  }catch(e){toast(`Save failed: ${e.message}`,'error');}
+  finally{btn.disabled=false;btn.textContent='Save Venue';}
+}
+function confirmClear(){
+  if(confirm('Reset all seats to defaults?')){buildGrid(false);markDirty();toast('Grid reset.','info');}
+}
+function goBack(){
+  if(isDirty&&!confirm('Unsaved changes. Leave?')) return;
+  window.location.href='/venues';
+}
+function toast(msg,type='success'){
+  const el=document.createElement('div'); el.className=`toast ${type}`;
+  el.textContent=msg; document.getElementById('toastStack').appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='s'){e.preventDefault();saveVenue();}
+  const k={'1':'normal','2':'blocked','3':'aisle','4':'front','5':'exit'};
+  if(k[e.key]&&!e.target.matches('input,textarea')) setTool(k[e.key]);
+});
+window.addEventListener('beforeunload',e=>{if(isDirty){e.preventDefault();e.returnValue='';}});
+document.getElementById('gridVp').addEventListener('mouseleave',()=>isPainting=false);
+document.getElementById('venueName').addEventListener('input',()=>{
+  document.getElementById('canvasName').textContent=
+    document.getElementById('venueName').value||'Untitled Venue';
+});
+buildGrid(true);
+</script>
+</body>
+</html>
